@@ -41,7 +41,7 @@ const MergePdfPage: React.FC = () => {
         <main className='w-100 h-screen flex flex-col justify-center items-center'>
             <h1 className='text-3xl font-bold'>Merge PDF Files</h1>
             <p className='text-lg mt-1'>Select or drop PDF files to merge them into a single document.</p>
-            <UploadButton buttonText='Select PDF Files' onFileUpload={handleFileUpload} />
+            <UploadButton buttonText='Select PDF Files' onFileUpload={handleFileUpload} multiple={true} />
         </main>
     );
 };
