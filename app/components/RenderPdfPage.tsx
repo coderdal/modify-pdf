@@ -11,10 +11,9 @@ interface RenderPdfPageProps {
     pdfFile: File;
     width: number;
     height: number;
-    onClick?: () => void;
 }
 
-const RenderPdfPage: React.FC<RenderPdfPageProps> = ({ pageNumber, pdfFile, width, height, onClick }) => {
+const RenderPdfPage: React.FC<RenderPdfPageProps> = ({ pageNumber, pdfFile, width, height }) => {
     const pdfViewerRef = useRef<HTMLCanvasElement>(null);
     const [pdfDocument, setPdfDocument] = useState<PDFJS.PDFDocumentProxy | null>(null);
     const [isMounted, setIsMounted] = useState<boolean>(true);
@@ -94,7 +93,7 @@ const RenderPdfPage: React.FC<RenderPdfPageProps> = ({ pageNumber, pdfFile, widt
     }, [pdfDocument, pageNumber, width, height]);
 
     return (
-        <div onClick={onClick} style={{ width: `${width}px`, height: `${height}px`, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+        <div style={{ width: `${width}px`, height: `${height}px`, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
             <canvas ref={pdfViewerRef}></canvas>
         </div>
     );
