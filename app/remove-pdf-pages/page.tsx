@@ -23,21 +23,6 @@ const RemovePdfPagesPage: React.FC = () => {
         }
     }
 
-    // const mergePdf = async (files: FileList) => {
-    //     const mergedPdf = await PDFDocument.create();
-
-    //     for (const file of Array.from(files).reverse()) {
-    //         const fileBuffer = await file.arrayBuffer();
-    //         const document = await PDFDocument.load(fileBuffer);
-    //         const copiedPages = await mergedPdf.copyPages(document, document.getPageIndices());
-    //         copiedPages.forEach((page) => mergedPdf.addPage(page));
-    //     }
-
-    //     const pdfBytes = await mergedPdf.save();
-
-    //     downloadPdf(pdfBytes);
-    // }
-
     const toggleRemovePage = (pageNumber: number) => {
         if (removingPages.includes(pageNumber)) {
             setRemovingPages((prev) => prev.filter((page) => page !== pageNumber).sort((a, b) => a - b));
@@ -47,7 +32,6 @@ const RemovePdfPagesPage: React.FC = () => {
     }
 
     const handleRemovePages = async () => {
-        console.log(removingPages);
         const fileBuffer = await pdfFile?.arrayBuffer();
         if (!fileBuffer) return;
 
