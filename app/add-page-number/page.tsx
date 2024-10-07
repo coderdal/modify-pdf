@@ -5,7 +5,7 @@ import UploadButton from '../components/UploadButton';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { hexToRgb } from '../helper';
 
-const RemovePdfPagesPage: React.FC = () => {
+const AddPageNumberPage: React.FC = () => {
     const [isUploaded, setIsUploaded] = useState<boolean>(false);
     const [pdfFile, setPdfFile] = useState<File | null>(null);
     const [pageNumberColor, setPageNumberColor] = useState<string>('#000000');
@@ -97,4 +97,4 @@ const RemovePdfPagesPage: React.FC = () => {
     );
 };
 
-export default RemovePdfPagesPage;
+export default AddPageNumberPage;
