@@ -9,6 +9,10 @@ export default function Home() {
         <Link href="/extract-pdf-text" className="bg-blue-500 text-white p-2 rounded-md">Extract PDF Text</Link>
         <Link href="/merge-pdf" className="bg-blue-500 text-white p-2 rounded-md">Merge PDF Files</Link>
         <Link href="/add-page-number" className="bg-blue-500 text-white p-2 rounded-md">Add Page Numbers</Link>
+        <Link href="/compress-pdf" className="bg-blue-500 text-white p-2 rounded-md">Compress PDF</Link>
+        <Link href="/convert-pdf" className="bg-blue-500 text-white p-2 rounded-md">Convert PDF</Link>
+        <Link href="/protect-pdf" className="bg-blue-500 text-white p-2 rounded-md">Protect PDF</Link>
+        <Link href="/remove-pdf-protection" className="bg-blue-500 text-white p-2 rounded-md">Remove PDF Protection</Link>
       </nav>
     </div>
   );
