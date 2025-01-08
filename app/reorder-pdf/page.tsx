@@ -123,8 +123,8 @@ const ReorderPDF = () => {
         }
 
         const formData = new FormData();
-        formData.append('file', file);
-        formData.append('pageOrder', JSON.stringify(pageOrder));
+        formData.append('pdf', file);
+        formData.append('pageOrder', pageOrder.join(','));
 
         try {
             setLoading(true);

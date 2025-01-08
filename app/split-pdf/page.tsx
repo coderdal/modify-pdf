@@ -37,7 +37,7 @@ const SplitPDF = () => {
         }
 
         const formData = new FormData();
-        formData.append('file', file);
+        formData.append('pdf', file);
         formData.append('fromPage', fromPage);
         formData.append('toPage', toPage);
 

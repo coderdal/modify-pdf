@@ -45,7 +45,7 @@ export default function ConvertPDF() {
         setError('');
         
         const formData = new FormData();
-        formData.append('file', file);
+        formData.append('pdf', file);
         formData.append('inputFormat', 'pdf');
         formData.append('exportFormat', exportFormat);
 

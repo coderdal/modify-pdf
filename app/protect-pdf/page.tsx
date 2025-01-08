@@ -47,7 +47,7 @@ export default function ProtectPDF() {
         setError('');
         
         const formData = new FormData();
-        formData.append('file', file);
+        formData.append('pdf', file);
         formData.append('password', password);
 
         try {
