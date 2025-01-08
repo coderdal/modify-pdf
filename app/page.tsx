@@ -13,6 +13,8 @@ export default function Home() {
         <Link href="/convert-pdf" className="bg-blue-500 text-white p-2 rounded-md">Convert PDF</Link>
         <Link href="/protect-pdf" className="bg-blue-500 text-white p-2 rounded-md">Protect PDF</Link>
         <Link href="/remove-pdf-protection" className="bg-blue-500 text-white p-2 rounded-md">Remove PDF Protection</Link>
+        <Link href="/split-pdf" className="bg-blue-500 text-white p-2 rounded-md">Split PDF</Link>
+        <Link href="/reorder-pdf" className="bg-blue-500 text-white p-2 rounded-md">Reorder PDF</Link>
       </nav>
     </div>
   );
