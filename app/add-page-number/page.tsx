@@ -1,100 +1,249 @@
 "use client";
 
-import React, { useState } from 'react';
-import UploadButton from '../components/UploadButton';
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
-import { hexToRgb } from '../helper';
+import { useState } from 'react';
+import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
+import PageContainer from '../components/common/PageContainer';
+import PdfOperationForm from '../components/molecules/PdfOperationForm';
+import ResultView from '../components/molecules/ResultView';
 
-const AddPageNumberPage: React.FC = () => {
-    const [isUploaded, setIsUploaded] = useState<boolean>(false);
-    const [pdfFile, setPdfFile] = useState<File | null>(null);
-    const [pageNumberColor, setPageNumberColor] = useState<string>('#000000');
-    const [pageNumberFontSize, setPageNumberFontSize] = useState<number>(12);
+type Position = 'top-left' | 'top-center' | 'top-right' | 'bottom-left' | 'bottom-center' | 'bottom-right';
+type Style = 'numeric' | 'roman' | 'roman-upper';
 
-    const handleFileUpload = (files: FileList) => {
-        if (files.length === 1) {
-            setIsUploaded(true);
-            setPdfFile(files[0]);
-        }
+interface PageNumberOptions {
+    position: Position;
+    style: Style;
+    startFrom: number;
+    fontSize: number;
+}
+
+const toRoman = (num: number, upperCase: boolean = false): string => {
+    const roman = {
+        M: 1000, CM: 900, D: 500, CD: 400,
+        C: 100, XC: 90, L: 50, XL: 40,
+        X: 10, IX: 9, V: 5, IV: 4, I: 1
+    };
+    let str = '';
+    for (const [key, value] of Object.entries(roman)) {
+        const q = Math.floor(num / value);
+        num -= q * value;
+        str += key.repeat(q);
     }
-
-    const handleAddPageNumber = async () => {
-        const fileBuffer = await pdfFile?.arrayBuffer();
-        if (!fileBuffer) return;
-        const pdf = await PDFDocument.load(fileBuffer);
-        const font = await pdf.embedFont(StandardFonts.TimesRoman);
-        let pageNumber = 1;
-        const rgbColor = hexToRgb(pageNumberColor);
-
-        for (const page of pdf.getPages()) {
-            const { width, height } = page.getSize()
-            page.drawText(`${pageNumber}`, {
-                x: width - 40,
-                y: height - 40,
-                size: pageNumberFontSize,
-                font: font,
-                color: rgb((rgbColor?.r || 0) / 255, (rgbColor?.g || 0) / 255, (rgbColor?.b || 0) / 255),
-            });
-            pageNumber++;
-        }
-
-        const pdfBytes = await pdf.save();
-
-        downloadPdf(pdfBytes);
-    }
-
-    const downloadPdf = async (pdfBytes: Uint8Array) => {
-        const url = URL.createObjectURL(new Blob([pdfBytes], { type: 'application/pdf' }));
-        const link = document.createElement('a');
-        link.style.display = 'none';
-        link.href = url;
-        link.setAttribute('download', `${pdfFile?.name.split('.')[0] || 'pdf'}-page_numbers.pdf`);
-        document.body.appendChild(link);
-        link.click();
-        link.parentNode?.removeChild(link);
-    }
-    
-    if (isUploaded) {
-        return (
-            <main className='w-100 h-screen flex flex-col justify-center items-center'>
-                <h1 className='text-3xl font-bold'>Add Page Number to PDF Files</h1>
-                <div className="flex flex-col space-y-4 mb-4">
-                    <div className="flex items-center space-x-4">
-                        <label htmlFor="colorPicker" className="text-lg">Page Number Color:</label>
-                        <input 
-                            type="color" 
-                            id="colorPicker" 
-                            className="w-10 h-10 border border-gray-300 rounded cursor-pointer"
-                            value={pageNumberColor}
-                            onChange={(e) => setPageNumberColor(e.target.value)}
-                        />
-                    </div>
-                    <div className="flex items-center space-x-4">
-                        <label htmlFor="fontSizePicker" className="text-lg">Font Size:</label>
-                        <input 
-                            type="number" 
-                            id="fontSizePicker" 
-                            className="w-20 px-2 py-1 border border-gray-300 rounded"
-                            min="8"
-                            max="36"
-                            value={pageNumberFontSize}
-                            onChange={(e) => setPageNumberFontSize(Math.min(36, Math.max(8, parseInt(e.target.value) || 8)))}
-                        />
-                    </div>
-                </div>
-                <button className='bg-blue-500 text-white px-4 py-2 rounded-md mt-4' onClick={handleAddPageNumber}>Add Page Number</button>
-
-            </main>
-        );
-    }
-    
-    return (
-        <main className='w-100 h-screen flex flex-col justify-center items-center'>
-            <h1 className='text-3xl font-bold'>Add Page Number to PDF Files</h1>
-            <p className='text-lg mt-1'>Select or drop PDF file to add page numbers to it.</p>
-            <UploadButton buttonText='Select PDF File' onFileUpload={handleFileUpload} multiple={false} />
-        </main>
-    );
+    return upperCase ? str : str.toLowerCase();
 };
 
-export default AddPageNumberPage;
+export default function AddPageNumbers() {
+    const [downloadUrl, setDownloadUrl] = useState<string>('');
+    const [showResult, setShowResult] = useState(false);
+    const [options, setOptions] = useState<PageNumberOptions>({
+        position: 'bottom-right',
+        style: 'numeric',
+        startFrom: 1,
+        fontSize: 12
+    });
+
+    const handleSubmit = async (files: File | File[]) => {
+        const file = Array.isArray(files) ? files[0] : files;
+        
+        try {
+            const fileBuffer = await file.arrayBuffer();
+            const pdfDoc = await PDFDocument.load(fileBuffer);
+            const helveticaFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
+            
+            const pages = pdfDoc.getPages();
+            pages.forEach((page, index) => {
+                const { width, height } = page.getSize();
+                const pageNumber = options.startFrom + index;
+                let text = '';
+                
+                switch (options.style) {
+                    case 'roman':
+                        text = toRoman(pageNumber);
+                        break;
+                    case 'roman-upper':
+                        text = toRoman(pageNumber, true);
+                        break;
+                    default:
+                        text = pageNumber.toString();
+                }
+
+                const textWidth = helveticaFont.widthOfTextAtSize(text, options.fontSize);
+                
+                let x = 0;
+                let y = 0;
+                
+                // Calculate position
+                switch (options.position) {
+                    case 'top-left':
+                        x = 30;
+                        y = height - 30;
+                        break;
+                    case 'top-center':
+                        x = (width - textWidth) / 2;
+                        y = height - 30;
+                        break;
+                    case 'top-right':
+                        x = width - textWidth - 30;
+                        y = height - 30;
+                        break;
+                    case 'bottom-left':
+                        x = 30;
+                        y = 30;
+                        break;
+                    case 'bottom-center':
+                        x = (width - textWidth) / 2;
+                        y = 30;
+                        break;
+                    case 'bottom-right':
+                        x = width - textWidth - 30;
+                        y = 30;
+                        break;
+                }
+
+                page.drawText(text, {
+                    x,
+                    y,
+                    size: options.fontSize,
+                    font: helveticaFont,
+                    color: rgb(0, 0, 0),
+                });
+            });
+
+            const pdfBytes = await pdfDoc.save();
+            const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+            const url = URL.createObjectURL(blob);
+            setDownloadUrl(url);
+
+            // Automatically open download in new tab
+            window.open(url, '_blank');
+        } catch {
+            throw new Error('Failed to add page numbers to PDF. Please try again.');
+        }
+    };
+
+    const handleComplete = (success: boolean) => {
+        if (success) {
+            setShowResult(true);
+        }
+    };
+
+    const handleBack = () => {
+        setShowResult(false);
+        if (downloadUrl) {
+            URL.revokeObjectURL(downloadUrl);
+        }
+        setDownloadUrl('');
+    };
+
+    const PageNumberSettings = (
+        <div className="mt-6 space-y-6">
+            <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Position
+                </label>
+                <select
+                    value={options.position}
+                    onChange={(e) => setOptions(prev => ({ ...prev, position: e.target.value as Position }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                >
+                    <option value="top-left">Top Left</option>
+                    <option value="top-center">Top Center</option>
+                    <option value="top-right">Top Right</option>
+                    <option value="bottom-left">Bottom Left</option>
+                    <option value="bottom-center">Bottom Center</option>
+                    <option value="bottom-right">Bottom Right</option>
+                </select>
+            </div>
+
+            <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Style
+                </label>
+                <select
+                    value={options.style}
+                    onChange={(e) => setOptions(prev => ({ ...prev, style: e.target.value as Style }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                >
+                    <option value="numeric">Numeric (1, 2, 3)</option>
+                    <option value="roman">Roman Lowercase (i, ii, iii)</option>
+                    <option value="roman-upper">Roman Uppercase (I, II, III)</option>
+                </select>
+            </div>
+
+            <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Start From
+                </label>
+                <input
+                    type="number"
+                    min="1"
+                    value={options.startFrom}
+                    onChange={(e) => setOptions(prev => ({ ...prev, startFrom: parseInt(e.target.value) || 1 }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                />
+            </div>
+
+            <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Font Size
+                </label>
+                <input
+                    type="number"
+                    min="8"
+                    max="72"
+                    value={options.fontSize}
+                    onChange={(e) => setOptions(prev => ({ ...prev, fontSize: parseInt(e.target.value) || 12 }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                />
+            </div>
+        </div>
+    );
+
+    return (
+        <PageContainer
+            title="Add Page Numbers"
+            description="Add customizable page numbers to your PDF document."
+        >
+            <div className="space-y-8">
+                {showResult ? (
+                    <ResultView
+                        operationName="Add Page Numbers"
+                        downloadUrl={downloadUrl}
+                        onBack={handleBack}
+                    />
+                ) : (
+                    <PdfOperationForm
+                        onSubmit={handleSubmit}
+                        operationName="Add Page Numbers"
+                        maxFileSize={50}
+                        additionalFields={PageNumberSettings}
+                        onComplete={handleComplete}
+                    />
+                )}
+
+                <div className="mt-8 border-t border-gray-200 pt-8">
+                    <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                        About Adding Page Numbers
+                    </h2>
+                    <div className="prose prose-indigo max-w-none">
+                        <p>
+                            Our PDF page numbering tool helps you add customizable page numbers to your documents. Here&apos;s what you can do:
+                        </p>
+                        <ul>
+                            <li>Choose from multiple positions (top/bottom, left/center/right)</li>
+                            <li>Select different numbering styles (numeric, Roman numerals)</li>
+                            <li>Customize the starting page number</li>
+                            <li>Adjust font size for better visibility</li>
+                            <li>Process files up to 50MB</li>
+                        </ul>
+                        <div className="bg-blue-50 p-4 rounded-md mt-4">
+                            <p className="text-sm text-blue-700">
+                                <strong>Tip:</strong> Choose a position and font size that complements your document&apos;s layout. 
+                                Bottom-right with size 12 is a common choice for most documents.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </PageContainer>
+    );
+}

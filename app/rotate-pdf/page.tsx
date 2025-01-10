@@ -1,77 +1,115 @@
 "use client";
 
-import React, { useState } from 'react';
-import UploadButton from '../components/UploadButton';
+import { useState } from 'react';
 import { PDFDocument, degrees } from 'pdf-lib';
+import PageContainer from '../components/common/PageContainer';
+import PdfOperationForm from '../components/molecules/PdfOperationForm';
+import ResultView from '../components/molecules/ResultView';
+import RotationSelector from '../components/molecules/RotationSelector';
 
-const RotatePdfPage: React.FC = () => {
-    const [isUploaded, setIsUploaded] = useState<boolean>(false);
-    const [pdfFile, setPdfFile] = useState<File | null>(null);
-    const [rotateAngle, setRotateAngle] = useState<number>(0);
+export default function RotatePDF() {
+    const [rotation, setRotation] = useState<number>(0);
+    const [downloadUrl, setDownloadUrl] = useState<string>('');
+    const [showResult, setShowResult] = useState(false);
 
-    const handleFileUpload = (files: FileList) => {
-        if (files.length === 1) {
-            setIsUploaded(true);
-            setPdfFile(files[0]);
-        }
-    }
-
-    const handleRotatePdf = async () => {
-        const fileBuffer = await pdfFile?.arrayBuffer();
-        if (!fileBuffer) return;
-        const pdf = await PDFDocument.load(fileBuffer);
-
-        for (const page of pdf.getPages()) {
-            page.setRotation(degrees(rotateAngle));
+    const handleSubmit = async (files: File | File[]) => {
+        const file = Array.isArray(files) ? files[0] : files;
+        
+        if (rotation === 0) {
+            throw new Error('Please select a rotation angle');
         }
 
-        const pdfBytes = await pdf.save();
+        try {
+            // Load the PDF document
+            const fileBuffer = await file.arrayBuffer();
+            const pdfDoc = await PDFDocument.load(fileBuffer);
 
-        downloadPdf(pdfBytes);
-    }
+            // Rotate all pages
+            const pages = pdfDoc.getPages();
+            pages.forEach(page => {
+                page.setRotation(degrees(rotation));
+            });
 
-    const downloadPdf = async (pdfBytes: Uint8Array) => {
-        const url = URL.createObjectURL(new Blob([pdfBytes], { type: 'application/pdf' }));
-        const link = document.createElement('a');
-        link.style.display = 'none';
-        link.href = url;
-        link.setAttribute('download', `${pdfFile?.name.split('.')[0] || 'pdf'}-rotated.pdf`);
-        document.body.appendChild(link);
-        link.click();
-        link.parentNode?.removeChild(link);
-    }
-    
-    if (isUploaded) {
-        return (
-            <main className='w-100 h-screen flex flex-col justify-center items-center'>
-                <h1 className='text-3xl font-bold'>Rotate PDF Files</h1>
-                <div className="flex flex-col space-y-4 mb-4">
-                    <div className="flex items-center space-x-4">
-                        <label htmlFor="fontSizePicker" className="text-lg">Rotate Angle:</label>
-                        <input 
-                            type="number" 
-                            id="rotateAnglePicker" 
-                            className="w-20 px-2 py-1 border border-gray-300 rounded"
-                            min="-360"
-                            max="360"
-                            value={rotateAngle}
-                            onChange={(e) => setRotateAngle(Math.min(360, Math.max(-360, parseInt(e.target.value) || 0)))}
-                        />
+            // Save the modified PDF
+            const pdfBytes = await pdfDoc.save();
+
+            // Create a download URL
+            const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+            const url = URL.createObjectURL(blob);
+            setDownloadUrl(url);
+
+            // Automatically open download in new tab
+            window.open(url, '_blank');
+        } catch {
+            throw new Error('Failed to rotate PDF. Please try again.');
+        }
+    };
+
+    const handleComplete = (success: boolean) => {
+        if (success) {
+            setShowResult(true);
+        }
+    };
+
+    const handleBack = () => {
+        setShowResult(false);
+        if (downloadUrl) {
+            URL.revokeObjectURL(downloadUrl);
+        }
+        setDownloadUrl('');
+        setRotation(0);
+    };
+
+    const RotationControl = (
+        <RotationSelector onChange={setRotation} />
+    );
+
+    return (
+        <PageContainer
+            title="Rotate PDF"
+            description="Rotate your PDF pages to the correct orientation."
+        >
+            <div className="space-y-8">
+                {showResult ? (
+                    <ResultView
+                        operationName="Rotate PDF"
+                        downloadUrl={downloadUrl}
+                        onBack={handleBack}
+                    />
+                ) : (
+                    <PdfOperationForm
+                        onSubmit={handleSubmit}
+                        operationName="Rotate PDF"
+                        maxFileSize={50}
+                        additionalFields={RotationControl}
+                        onComplete={handleComplete}
+                    />
+                )}
+
+                <div className="mt-8 border-t border-gray-200 pt-8">
+                    <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                        About PDF Rotation
+                    </h2>
+                    <div className="prose prose-indigo max-w-none">
+                        <p>
+                            Our PDF rotation tool helps you fix page orientations in your PDF documents. Here&apos;s what you can do:
+                        </p>
+                        <ul>
+                            <li>Rotate pages in 90-degree increments</li>
+                            <li>Preview the rotation before applying</li>
+                            <li>Maintain original PDF quality</li>
+                            <li>Process files up to 50MB</li>
+                            <li>Download the rotated PDF instantly</li>
+                        </ul>
+                        <div className="bg-blue-50 p-4 rounded-md mt-4">
+                            <p className="text-sm text-blue-700">
+                                <strong>Tip:</strong> Use the visual rotation controls to preview how your PDF will look after rotation. 
+                                You can rotate left, right, or flip 180 degrees.
+                            </p>
+                        </div>
                     </div>
                 </div>
-                <button className='bg-blue-500 text-white px-4 py-2 rounded-md mt-4' onClick={handleRotatePdf}>Rotate PDF</button>
-
-            </main>
-        );
-    }
-    
-    return (
-        <main className='w-100 h-screen flex flex-col justify-center items-center'>
-            <h1 className='text-3xl font-bold'>Rotate PDF Files</h1>
-            <p className='text-lg mt-1'>Select or drop PDF file to rotate it.</p>
-            <UploadButton buttonText='Select PDF File' onFileUpload={handleFileUpload} multiple={false} />
-        </main>
+            </div>
+        </PageContainer>
     );
-};
-
-export default RotatePdfPage;
+}

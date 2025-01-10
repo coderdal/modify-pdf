@@ -1,227 +1,221 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { DndProvider, useDrag, useDrop } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
-import UploadButton from '../components/UploadButton';
+import { PDFDocument } from 'pdf-lib';
+import PageContainer from '../components/common/PageContainer';
+import PdfOperationForm from '../components/molecules/PdfOperationForm';
+import ResultView from '../components/molecules/ResultView';
 import RenderPdfPage from '../components/RenderPdfPage';
 
-interface DragItem {
+type DragItem = {
     type: string;
-    id: string;
-    index: number;
-}
-
-interface PageCardProps {
     id: number;
     index: number;
-    pageNum: number;
+};
+
+const ItemTypes = {
+    PAGE: 'page',
+};
+
+interface DraggablePageProps {
+    id: number;
+    index: number;
     moveCard: (dragIndex: number, hoverIndex: number) => void;
     pdfFile: File;
 }
 
-const ItemTypes = {
-    CARD: 'card',
-};
-
-const PageCard: React.FC<PageCardProps> = ({ id, index, pageNum, moveCard, pdfFile }) => {
-    const ref = React.useRef<HTMLDivElement>(null);
-
+function DraggablePage({ id, index, moveCard, pdfFile }: DraggablePageProps) {
     const [{ isDragging }, drag] = useDrag({
-        type: ItemTypes.CARD,
-        item: { type: ItemTypes.CARD, id: id.toString(), index },
+        type: ItemTypes.PAGE,
+        item: { type: ItemTypes.PAGE, id, index },
         collect: (monitor) => ({
             isDragging: monitor.isDragging(),
         }),
     });
 
     const [, drop] = useDrop({
-        accept: ItemTypes.CARD,
+        accept: ItemTypes.PAGE,
         hover(item: DragItem) {
-            if (!ref.current) {
+            if (item.index === index) {
                 return;
             }
-            const dragIndex = item.index;
-            const hoverIndex = index;
-
-            if (dragIndex === hoverIndex) {
-                return;
-            }
-
-            moveCard(dragIndex, hoverIndex);
-            item.index = hoverIndex;
+            moveCard(item.index, index);
+            item.index = index;
         },
     });
 
-    drag(drop(ref));
+    const ref = useCallback((node: HTMLDivElement | null) => {
+        drag(drop(node));
+    }, [drag, drop]);
 
     return (
         <div
             ref={ref}
-            style={{ opacity: isDragging ? 0.5 : 1 }}
-            className="border rounded-lg p-2 bg-gray-50 cursor-move"
+            className={`
+                relative border-2 rounded-lg p-2 cursor-move transition-all
+                ${isDragging ? 'opacity-50' : 'opacity-100'}
+                border-gray-300 hover:border-blue-400
+            `}
         >
-            <div className="text-center text-sm font-medium mb-2">
-                Page {pageNum}
-            </div>
             <RenderPdfPage
-                pageNumber={pageNum}
+                pageNumber={id + 1}
                 pdfFile={pdfFile}
                 width={150}
                 height={200}
             />
+            <div className="absolute top-1 right-1 bg-white rounded-full w-5 h-5 flex items-center justify-center border border-gray-300">
+                <span className="text-xs">{id + 1}</span>
+            </div>
         </div>
     );
-};
+}
 
-const ReorderPDF = () => {
-    const [file, setFile] = useState<File | null>(null);
-    const [pageCount, setPageCount] = useState(0);
+export default function ReorderPDFPages() {
+    const [pdfFile, setPdfFile] = useState<File | null>(null);
     const [pageOrder, setPageOrder] = useState<number[]>([]);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
-    const [resultUrl, setResultUrl] = useState('');
+    const [downloadUrl, setDownloadUrl] = useState<string>('');
+    const [showResult, setShowResult] = useState(false);
 
-    useEffect(() => {
-        if (file) {
-            const getPageCount = async () => {
-                const arrayBuffer = await file.arrayBuffer();
-                const pdf = await import('pdfjs-dist/legacy/build/pdf.mjs').then(
-                    module => module.getDocument({ data: arrayBuffer }).promise
-                );
-                const count = pdf.numPages;
-                setPageCount(count);
-                setPageOrder(Array.from({ length: count }, (_, i) => i + 1));
-            };
-            getPageCount();
-        }
-    }, [file]);
-
-    const handleFileUpload = (files: FileList) => {
-        if (files.length > 0) {
-            setFile(files[0]);
-            setError('');
-            setResultUrl('');
-        }
-    };
-
-    const moveCard = (dragIndex: number, hoverIndex: number) => {
-        const newOrder = [...pageOrder];
-        const [draggedItem] = newOrder.splice(dragIndex, 1);
-        newOrder.splice(hoverIndex, 0, draggedItem);
-        setPageOrder(newOrder);
-    };
-
-    const handleReverse = () => {
-        setPageOrder([...pageOrder].reverse());
-    };
-
-    const handleSubmit = async () => {
-        if (!file) {
-            setError('Please select a PDF file');
-            return;
-        }
-
-        const formData = new FormData();
-        formData.append('pdf', file);
-        formData.append('pageOrder', pageOrder.join(','));
-
+    const handleFileSelect = async (files: File | File[]) => {
+        const file = Array.isArray(files) ? files[0] : files;
+        setPdfFile(file);
+        
         try {
-            setLoading(true);
-            setError('');
-            const response = await fetch('http://localhost:3001/reorder-pdf', {
-                method: 'POST',
-                body: formData,
-            });
-
-            if (!response.ok) {
-                const data = await response.json();
-                throw new Error(data.error || 'Failed to reorder PDF');
-            }
-
-            const data = await response.json();
-            setResultUrl(data.filePath);
-        } catch (err: unknown) {
-            if (err instanceof Error) {
-                setError(err.message);
-            } else {
-                setError('An error occurred while reordering the PDF');
-            }
-        } finally {
-            setLoading(false);
+            const fileBuffer = await file.arrayBuffer();
+            const document = await PDFDocument.load(fileBuffer);
+            const pageCount = document.getPageCount();
+            setPageOrder(Array.from({ length: pageCount }, (_, i) => i));
+        } catch {
+            throw new Error('Failed to load PDF. Please try again with a valid PDF file.');
         }
     };
+
+    const moveCard = useCallback((dragIndex: number, hoverIndex: number) => {
+        setPageOrder(prevOrder => {
+            const newOrder = [...prevOrder];
+            const [removed] = newOrder.splice(dragIndex, 1);
+            newOrder.splice(hoverIndex, 0, removed);
+            return newOrder;
+        });
+    }, []);
+
+    const handleSubmit = async (files: File | File[]) => {
+        const file = Array.isArray(files) ? files[0] : files;
+        
+        try {
+            const fileBuffer = await file.arrayBuffer();
+            const pdfDoc = await PDFDocument.load(fileBuffer);
+            const newPdf = await PDFDocument.create();
+            
+            // Copy pages in the new order
+            for (const pageIndex of pageOrder) {
+                const [page] = await newPdf.copyPages(pdfDoc, [pageIndex]);
+                newPdf.addPage(page);
+            }
+
+            const pdfBytes = await newPdf.save();
+            const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+            const url = URL.createObjectURL(blob);
+            setDownloadUrl(url);
+
+            // Automatically open download in new tab
+            window.open(url, '_blank');
+        } catch {
+            throw new Error('Failed to reorder PDF pages. Please try again.');
+        }
+    };
+
+    const handleComplete = (success: boolean) => {
+        if (success) {
+            setShowResult(true);
+        }
+    };
+
+    const handleBack = () => {
+        setShowResult(false);
+        if (downloadUrl) {
+            URL.revokeObjectURL(downloadUrl);
+        }
+        setDownloadUrl('');
+        setPdfFile(null);
+        setPageOrder([]);
+    };
+
+    const PageReorderer = pdfFile && pageOrder.length > 0 ? (
+        <div className="mt-6 space-y-4">
+            <div className="flex items-center justify-between">
+                <h3 className="text-sm font-medium text-gray-700">
+                    Drag and Drop Pages to Reorder
+                </h3>
+            </div>
+            <DndProvider backend={HTML5Backend}>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                    {pageOrder.map((pageNum, index) => (
+                        <DraggablePage
+                            key={pageNum}
+                            id={pageNum}
+                            index={index}
+                            moveCard={moveCard}
+                            pdfFile={pdfFile}
+                        />
+                    ))}
+                </div>
+            </DndProvider>
+            <p className="text-sm text-gray-500 mt-2">
+                Drag and drop pages to rearrange their order. The final PDF will follow this arrangement.
+            </p>
+        </div>
+    ) : null;
 
     return (
-        <DndProvider backend={HTML5Backend}>
-            <main className="min-h-screen p-8">
-                <div className="max-w-4xl mx-auto">
-                    <h1 className="text-3xl font-bold mb-8">Reorder PDF Pages</h1>
-                    
-                    <div className="bg-white p-6 rounded-lg shadow-lg">
-                        <div className="mb-6">
-                            <UploadButton onFileUpload={handleFileUpload} />
-                            {file && (
-                                <p className="mt-2 text-sm text-gray-600">
-                                    Selected file: {file.name}
-                                </p>
-                            )}
+        <PageContainer
+            title="Reorder PDF Pages"
+            description="Rearrange the pages in your PDF document using our intuitive drag-and-drop interface."
+        >
+            <div className="space-y-8">
+                {showResult ? (
+                    <ResultView
+                        operationName="Reorder Pages"
+                        downloadUrl={downloadUrl}
+                        onBack={handleBack}
+                    />
+                ) : (
+                    <PdfOperationForm
+                        onSubmit={handleSubmit}
+                        operationName="Reorder Pages"
+                        maxFileSize={50}
+                        additionalFields={PageReorderer}
+                        onComplete={handleComplete}
+                        onFileSelect={handleFileSelect}
+                    />
+                )}
+
+                <div className="mt-8 border-t border-gray-200 pt-8">
+                    <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                        About PDF Page Reordering
+                    </h2>
+                    <div className="prose prose-indigo max-w-none">
+                        <p>
+                            Our PDF page reordering tool helps you rearrange pages in your PDF documents. Here&apos;s what you can do:
+                        </p>
+                        <ul>
+                            <li>Preview all pages before reordering</li>
+                            <li>Drag and drop pages to rearrange them</li>
+                            <li>Maintain original PDF quality</li>
+                            <li>Process files up to 50MB</li>
+                            <li>Download the modified PDF instantly</li>
+                        </ul>
+                        <div className="bg-blue-50 p-4 rounded-md mt-4">
+                            <p className="text-sm text-blue-700">
+                                <strong>Tip:</strong> Click and drag a page to move it to a new position. 
+                                The pages will automatically reorder as you drag.
+                            </p>
                         </div>
-
-                        {pageCount > 0 && (
-                            <div className="space-y-6">
-                                <div className="flex justify-end">
-                                    <button
-                                        onClick={handleReverse}
-                                        className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300"
-                                    >
-                                        Reverse Order
-                                    </button>
-                                </div>
-
-                                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                                    {pageOrder.map((pageNum, index) => (
-                                        <PageCard
-                                            key={pageNum}
-                                            id={pageNum}
-                                            index={index}
-                                            pageNum={pageNum}
-                                            moveCard={moveCard}
-                                            pdfFile={file!}
-                                        />
-                                    ))}
-                                </div>
-
-                                {error && (
-                                    <div className="text-red-500 text-sm mt-2">{error}</div>
-                                )}
-
-                                <button
-                                    onClick={handleSubmit}
-                                    disabled={loading}
-                                    className="w-full bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
-                                >
-                                    {loading ? 'Processing...' : 'Reorder PDF'}
-                                </button>
-
-                                {resultUrl && (
-                                    <div className="mt-4">
-                                        <a
-                                            href={resultUrl}
-                                            className="text-blue-500 hover:text-blue-600"
-                                            download
-                                        >
-                                            Download Reordered PDF
-                                        </a>
-                                    </div>
-                                )}
-                            </div>
-                        )}
                     </div>
                 </div>
-            </main>
-        </DndProvider>
+            </div>
+        </PageContainer>
     );
-};
-
-export default ReorderPDF; 
+} 

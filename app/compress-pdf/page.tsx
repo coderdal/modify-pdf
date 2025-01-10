@@ -2,126 +2,114 @@
 
 import { useState } from 'react';
 import axios from 'axios';
-import type { AxiosError } from 'axios';
-import UploadButton from '../components/UploadButton';
+import PageContainer from '../components/common/PageContainer';
+import PdfOperationForm from '../components/molecules/PdfOperationForm';
+import ResultView from '../components/molecules/ResultView';
 
-interface CompressResponse {
-    filePath: string;
-}
-
-interface ErrorResponse {
-    error: string;
-}
+const COMPRESSION_LEVELS = {
+    LOW: { label: 'Low (Better Quality)', value: 'LOW' },
+    MEDIUM: { label: 'Medium (Balanced)', value: 'MEDIUM' },
+    HIGH: { label: 'High (Smallest Size)', value: 'HIGH' }
+} as const;
 
 export default function CompressPDF() {
-    const [file, setFile] = useState<File | null>(null);
-    const [compressionLevel, setCompressionLevel] = useState('MEDIUM');
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
-    const [downloadUrl, setDownloadUrl] = useState('');
+    const [compressionLevel, setCompressionLevel] = useState<keyof typeof COMPRESSION_LEVELS>('MEDIUM');
+    const [downloadUrl, setDownloadUrl] = useState<string>('');
+    const [showResult, setShowResult] = useState(false);
 
-    const handleFileUpload = (files: FileList) => {
-        if (files[0]) {
-            setFile(files[0]);
-            setError('');
-            setDownloadUrl('');
-        }
-    };
-
-    const handleCompress = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!file) {
-            setError('Please select a PDF file');
-            return;
-        }
-
-        setLoading(true);
-        setError('');
-        
+    const handleSubmit = async (file: File) => {
         const formData = new FormData();
         formData.append('pdf', file);
         formData.append('compressionLevel', compressionLevel);
 
-        try {
-            const response = await axios.post<CompressResponse>('http://localhost:3001/compress-pdf', formData, {
-                headers: {
-                    'Content-Type': 'multipart/form-data',
-                },
-            });
-            setDownloadUrl(response.data.filePath);
-        } catch (err) {
-            const error = err as AxiosError<ErrorResponse>;
-            setError(error.response?.data?.error || 'Failed to compress PDF');
-        } finally {
-            setLoading(false);
+        const response = await axios.post<{ status: string; data: { filePath: string } }>(
+            'http://localhost:3001/compress-pdf',
+            formData,
+            {
+                headers: { 'Content-Type': 'multipart/form-data' },
+            }
+        );
+
+        if (response.data.status !== 'success') {
+            throw new Error('Failed to compress PDF');
+        }
+
+        setDownloadUrl(response.data.data.filePath);
+        // Automatically open download in new tab
+        window.open(response.data.data.filePath, '_blank');
+    };
+
+    const handleComplete = (success: boolean) => {
+        if (success) {
+            setShowResult(true);
         }
     };
 
-    return (
-        <div className="min-h-screen bg-gray-100 py-8 px-4">
-            <div className="max-w-2xl mx-auto bg-white rounded-lg shadow-md p-6">
-                <h1 className="text-2xl font-bold text-center mb-8">Compress PDF</h1>
-                
-                <form onSubmit={handleCompress} className="space-y-6">
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Select PDF File
-                        </label>
-                        <div className="flex justify-center">
-                            <UploadButton 
-                                onFileUpload={handleFileUpload}
-                                buttonText={file ? file.name : 'Select PDF File'}
-                                multiple={false}
-                            />
-                        </div>
-                    </div>
+    const handleBack = () => {
+        setShowResult(false);
+        setDownloadUrl('');
+    };
 
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Compression Level
-                        </label>
-                        <select
-                            value={compressionLevel}
-                            onChange={(e) => setCompressionLevel(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                        >
-                            <option value="LOW">Low (Better Quality)</option>
-                            <option value="MEDIUM">Medium (Balanced)</option>
-                            <option value="HIGH">High (Smallest Size)</option>
-                        </select>
-                    </div>
-
-                    <button
-                        type="submit"
-                        disabled={loading || !file}
-                        className={`w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white 
-                            ${loading || !file 
-                                ? 'bg-indigo-400 cursor-not-allowed' 
-                                : 'bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500'
-                            }`}
-                    >
-                        {loading ? 'Compressing...' : 'Compress PDF'}
-                    </button>
-                </form>
-
-                {error && (
-                    <div className="mt-4 text-red-600 text-sm text-center">
-                        {error}
-                    </div>
-                )}
-
-                {downloadUrl && (
-                    <div className="mt-6 text-center">
-                        <a
-                            href={downloadUrl}
-                            download
-                            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-                        >
-                            Download Compressed PDF
-                        </a>
-                    </div>
-                )}
-            </div>
+    const CompressionSelector = (
+        <div className="mt-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+                Compression Level
+            </label>
+            <select
+                value={compressionLevel}
+                onChange={(e) => setCompressionLevel(e.target.value as keyof typeof COMPRESSION_LEVELS)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+            >
+                {Object.entries(COMPRESSION_LEVELS).map(([key, level]) => (
+                    <option key={key} value={level.value}>
+                        {level.label}
+                    </option>
+                ))}
+            </select>
         </div>
+    );
+
+    return (
+        <PageContainer
+            title="Compress PDF"
+            description="Reduce your PDF file size while maintaining quality. Our tool ensures the best balance between size and quality."
+        >
+            <div className="space-y-8">
+                {showResult ? (
+                    <ResultView
+                        operationName="Compress PDF"
+                        downloadUrl={downloadUrl}
+                        onBack={handleBack}
+                    />
+                ) : (
+                    <PdfOperationForm
+                        onSubmit={handleSubmit}
+                        operationName="Compress PDF"
+                        maxFileSize={50}
+                        additionalFields={CompressionSelector}
+                        onComplete={handleComplete}
+                    />
+                )}
+
+                <div className="mt-8 border-t border-gray-200 pt-8">
+                    <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                        About PDF Compression
+                    </h2>
+                    <div className="prose prose-indigo max-w-none">
+                        <p>
+                            Our PDF compression tool helps you reduce file sizes while maintaining the best possible quality. Choose from different compression levels:
+                        </p>
+                        <ul>
+                            <li><strong>Low Compression:</strong> Best for documents with high-quality images</li>
+                            <li><strong>Medium Compression:</strong> Balanced option for most PDFs</li>
+                            <li><strong>High Compression:</strong> Maximum size reduction, suitable for basic documents</li>
+                        </ul>
+                        <p className="text-sm text-gray-500 mt-4">
+                            Note: The actual compression ratio depends on the content of your PDF.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </PageContainer>
     );
 } 

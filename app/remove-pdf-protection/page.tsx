@@ -2,157 +2,126 @@
 
 import { useState } from 'react';
 import axios from 'axios';
-import UploadButton from '../components/UploadButton';
+import PageContainer from '../components/common/PageContainer';
+import PdfOperationForm from '../components/molecules/PdfOperationForm';
+import ResultView from '../components/molecules/ResultView';
 
-interface RemoveProtectionResponse {
-    filePath: string;
-}
-
-interface ErrorResponse {
-    error: string;
-}
-
-export default function RemoveProtectionPDF() {
-    const [file, setFile] = useState<File | null>(null);
+export default function RemovePDFProtection() {
     const [password, setPassword] = useState('');
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
-    const [downloadUrl, setDownloadUrl] = useState('');
-    const [attempts, setAttempts] = useState(0);
+    const [downloadUrl, setDownloadUrl] = useState<string>('');
+    const [showResult, setShowResult] = useState(false);
 
-    const handleFileUpload = (files: FileList) => {
-        if (files[0]) {
-            setFile(files[0]);
-            setError('');
-            setDownloadUrl('');
-            setAttempts(0);
-        }
-    };
-
-    const handleRemoveProtection = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!file) {
-            setError('Please select a PDF file');
-            return;
-        }
-        if (!password) {
-            setError('Please enter the PDF password');
-            return;
-        }
-
-        setLoading(true);
-        setError('');
+    const handleSubmit = async (files: File | File[]) => {
+        const file = Array.isArray(files) ? files[0] : files;
         
+        if (!password) {
+            throw new Error('Please enter the PDF password');
+        }
+
         const formData = new FormData();
         formData.append('pdf', file);
         formData.append('password', password);
 
-        try {
-            const response = await axios.post<RemoveProtectionResponse>('http://localhost:3001/remove-pdf-protection', formData, {
-                headers: {
-                    'Content-Type': 'multipart/form-data',
-                },
-            });
-            setDownloadUrl(response.data.filePath);
-            setAttempts(0);
-        } catch (err) {
-            if (axios.isAxiosError(err) && err.response?.data?.error) {
-                const errorMessage = err.response.data.error;
-                setError(errorMessage);
-                
-                // Increment attempts counter for wrong password
-                if (errorMessage.includes('Incorrect password')) {
-                    setAttempts(prev => prev + 1);
-                }
-            } else {
-                setError('Failed to remove PDF protection. Please try again.');
+        const response = await axios.post<{ status: string; data: { filePath: string } }>(
+            'http://localhost:3001/remove-pdf-protection',
+            formData,
+            {
+                headers: { 'Content-Type': 'multipart/form-data' },
             }
-        } finally {
-            setLoading(false);
+        );
+
+        if (response.data.status !== 'success') {
+            throw new Error('Failed to remove PDF protection. Please check if the password is correct.');
+        }
+
+        setDownloadUrl(response.data.data.filePath);
+        // Automatically open download in new tab
+        window.open(response.data.data.filePath, '_blank');
+    };
+
+    const handleComplete = (success: boolean) => {
+        if (success) {
+            setShowResult(true);
         }
     };
 
-    const getPasswordHelperText = () => {
-        if (attempts === 0) return 'Enter the password that was used to protect this PDF';
-        if (attempts === 1) return 'First attempt failed. Please check the password and try again.';
-        if (attempts === 2) return 'Second attempt failed. Make sure Caps Lock is off and try again.';
-        return `${attempts} failed attempts. Please make sure you have the correct password.`;
+    const handleBack = () => {
+        setShowResult(false);
+        setDownloadUrl('');
+        setPassword('');
     };
 
-    return (
-        <div className="min-h-screen bg-gray-100 py-8 px-4">
-            <div className="max-w-2xl mx-auto bg-white rounded-lg shadow-md p-6">
-                <h1 className="text-2xl font-bold text-center mb-8">Remove PDF Password Protection</h1>
-                
-                <form onSubmit={handleRemoveProtection} className="space-y-6">
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Select Protected PDF File
-                        </label>
-                        <div className="flex justify-center">
-                            <UploadButton 
-                                onFileUpload={handleFileUpload}
-                                buttonText={file ? file.name : 'Select PDF File'}
-                                multiple={false}
-                            />
-                        </div>
-                    </div>
-
-                    <div>
-                        <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-                            PDF Password
-                        </label>
-                        <input
-                            type="password"
-                            id="password"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            placeholder="Enter the PDF's current password"
-                            className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 
-                                ${attempts > 0 
-                                    ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
-                                    : 'border-gray-300 focus:ring-indigo-500 focus:border-indigo-500'
-                                }`}
-                        />
-                        <p className={`mt-1 text-sm ${attempts > 0 ? 'text-red-500' : 'text-gray-500'}`}>
-                            {getPasswordHelperText()}
-                        </p>
-                    </div>
-
-                    <button
-                        type="submit"
-                        disabled={loading || !file || !password}
-                        className={`w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white 
-                            ${loading || !file || !password
-                                ? 'bg-indigo-400 cursor-not-allowed' 
-                                : 'bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500'
-                            }`}
-                    >
-                        {loading ? 'Removing Protection...' : 'Remove Protection'}
-                    </button>
-                </form>
-
-                {error && (
-                    <div className="mt-4 text-red-600 text-sm text-center">
-                        {error}
-                    </div>
-                )}
-
-                {downloadUrl && (
-                    <div className="mt-6 text-center space-y-2">
-                        <p className="text-sm text-gray-600">
-                            Password protection has been removed from your PDF.
-                        </p>
-                        <a
-                            href={downloadUrl}
-                            download
-                            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-                        >
-                            Download Unprotected PDF
-                        </a>
-                    </div>
-                )}
+    const PasswordInput = (
+        <div className="mt-6">
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+                PDF Password
+            </label>
+            <input
+                type="password"
+                id="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter the PDF password"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+            />
+            <p className="mt-1 text-sm text-gray-500">
+                Enter the password that was used to protect the PDF file
+            </p>
+            <div className="bg-yellow-50 p-4 rounded-md mt-4">
+                <p className="text-sm text-yellow-700">
+                    <strong>Note:</strong> This tool can only remove protection from PDFs where you know the password. 
+                    We cannot bypass or crack PDF passwords.
+                </p>
             </div>
         </div>
+    );
+
+    return (
+        <PageContainer
+            title="Remove PDF Protection"
+            description="Remove password protection and restrictions from your PDF files."
+        >
+            <div className="space-y-8">
+                {showResult ? (
+                    <ResultView
+                        operationName="Remove Protection"
+                        downloadUrl={downloadUrl}
+                        onBack={handleBack}
+                    />
+                ) : (
+                    <PdfOperationForm
+                        onSubmit={handleSubmit}
+                        operationName="Remove Protection"
+                        maxFileSize={50}
+                        additionalFields={PasswordInput}
+                        onComplete={handleComplete}
+                    />
+                )}
+
+                <div className="mt-8 border-t border-gray-200 pt-8">
+                    <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                        About PDF Protection Removal
+                    </h2>
+                    <div className="prose prose-indigo max-w-none">
+                        <p>
+                            Our PDF protection removal tool helps you remove password protection and restrictions from your PDF files. Here&apos;s what you need to know:
+                        </p>
+                        <ul>
+                            <li>Remove password protection from PDF files</li>
+                            <li>Remove restrictions on printing, copying, and editing</li>
+                            <li>Maintain original PDF quality and formatting</li>
+                            <li>Process files up to 50MB</li>
+                            <li>Secure and private processing</li>
+                        </ul>
+                        <div className="bg-blue-50 p-4 rounded-md mt-4">
+                            <p className="text-sm text-blue-700">
+                                <strong>Important:</strong> You must have the correct password to remove protection from a PDF file. 
+                                This tool cannot bypass or crack PDF passwords.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </PageContainer>
     );
 } 

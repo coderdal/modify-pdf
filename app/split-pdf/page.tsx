@@ -1,39 +1,35 @@
 'use client';
 
-import React, { useState } from 'react';
-import UploadButton from '../components/UploadButton';
+import { useState } from 'react';
+import axios from 'axios';
+import PageContainer from '../components/common/PageContainer';
+import PdfOperationForm from '../components/molecules/PdfOperationForm';
+import ResultView from '../components/molecules/ResultView';
 
-const SplitPDF = () => {
-    const [file, setFile] = useState<File | null>(null);
+export default function SplitPDF() {
     const [fromPage, setFromPage] = useState('');
     const [toPage, setToPage] = useState('');
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
-    const [resultUrl, setResultUrl] = useState('');
+    const [downloadUrl, setDownloadUrl] = useState<string>('');
+    const [showResult, setShowResult] = useState(false);
 
-    const handleFileUpload = (files: FileList) => {
-        if (files.length > 0) {
-            setFile(files[0]);
-            setError('');
-            setResultUrl('');
-        }
-    };
-
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!file) {
-            setError('Please select a PDF file');
-            return;
-        }
-
+    const handleSubmit = async (file: File) => {
         if (!fromPage || !toPage) {
-            setError('Please enter both from and to page numbers');
-            return;
+            throw new Error('Please enter both from and to page numbers');
         }
 
-        if (parseInt(fromPage) > parseInt(toPage)) {
-            setError('From page cannot be greater than to page');
-            return;
+        const fromPageNum = parseInt(fromPage);
+        const toPageNum = parseInt(toPage);
+
+        if (isNaN(fromPageNum) || isNaN(toPageNum)) {
+            throw new Error('Please enter valid page numbers');
+        }
+
+        if (fromPageNum < 1) {
+            throw new Error('From page must be at least 1');
+        }
+
+        if (fromPageNum > toPageNum) {
+            throw new Error('From page cannot be greater than to page');
         }
 
         const formData = new FormData();
@@ -41,103 +37,118 @@ const SplitPDF = () => {
         formData.append('fromPage', fromPage);
         formData.append('toPage', toPage);
 
-        try {
-            setLoading(true);
-            setError('');
-            const response = await fetch('http://localhost:3001/split-pdf', {
-                method: 'POST',
-                body: formData,
-            });
-
-            if (!response.ok) {
-                const data = await response.json();
-                throw new Error(data.error || 'Failed to split PDF');
+        const response = await axios.post<{ status: string; data: { filePath: string } }>(
+            'http://localhost:3001/split-pdf',
+            formData,
+            {
+                headers: { 'Content-Type': 'multipart/form-data' },
             }
+        );
 
-            const data = await response.json();
-            setResultUrl(data.filePath);
-        } catch (err: unknown) {
-            if (err instanceof Error) {
-                setError(err.message);
-            } else {
-                setError('An error occurred while splitting the PDF');
-            }
-        } finally {
-            setLoading(false);
+        if (response.data.status !== 'success') {
+            throw new Error('Failed to split PDF');
+        }
+
+        setDownloadUrl(response.data.data.filePath);
+        // Automatically open download in new tab
+        window.open(response.data.data.filePath, '_blank');
+    };
+
+    const handleComplete = (success: boolean) => {
+        if (success) {
+            setShowResult(true);
         }
     };
 
-    return (
-        <main className="min-h-screen p-8">
-            <div className="max-w-2xl mx-auto">
-                <h1 className="text-3xl font-bold mb-8">Split PDF</h1>
-                
-                <div className="bg-white p-6 rounded-lg shadow-lg">
-                    <div className="mb-6">
-                        <UploadButton onFileUpload={handleFileUpload} />
-                        {file && (
-                            <p className="mt-2 text-sm text-gray-600">
-                                Selected file: {file.name}
-                            </p>
-                        )}
-                    </div>
+    const handleBack = () => {
+        setShowResult(false);
+        setDownloadUrl('');
+        setFromPage('');
+        setToPage('');
+    };
 
-                    <form onSubmit={handleSubmit} className="space-y-6">
-                        <div className="flex space-x-4">
-                            <div className="flex-1">
-                                <label className="block text-sm font-medium text-gray-700">
-                                    From Page
-                                </label>
-                                <input
-                                    type="number"
-                                    min="1"
-                                    value={fromPage}
-                                    onChange={(e) => setFromPage(e.target.value)}
-                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                                />
-                            </div>
-                            <div className="flex-1">
-                                <label className="block text-sm font-medium text-gray-700">
-                                    To Page
-                                </label>
-                                <input
-                                    type="number"
-                                    min="1"
-                                    value={toPage}
-                                    onChange={(e) => setToPage(e.target.value)}
-                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                                />
-                            </div>
-                        </div>
-
-                        {error && (
-                            <div className="text-red-500 text-sm mt-2">{error}</div>
-                        )}
-
-                        <button
-                            type="submit"
-                            disabled={loading}
-                            className="w-full bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
-                        >
-                            {loading ? 'Processing...' : 'Split PDF'}
-                        </button>
-
-                        {resultUrl && (
-                            <div className="mt-4">
-                                <a
-                                    href={resultUrl}
-                                    className="text-blue-500 hover:text-blue-600"
-                                    download
-                                >
-                                    Download Split PDF
-                                </a>
-                            </div>
-                        )}
-                    </form>
+    const PageRangeSelector = (
+        <div className="mt-6 space-y-6">
+            <div className="grid grid-cols-2 gap-4">
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                        From Page
+                    </label>
+                    <input
+                        type="number"
+                        min="1"
+                        value={fromPage}
+                        onChange={(e) => setFromPage(e.target.value)}
+                        placeholder="1"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                    />
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                        To Page
+                    </label>
+                    <input
+                        type="number"
+                        min="1"
+                        value={toPage}
+                        onChange={(e) => setToPage(e.target.value)}
+                        placeholder="e.g., 5"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                    />
                 </div>
             </div>
-        </main>
+            <p className="text-sm text-gray-500">
+                Enter the range of pages you want to extract. For example, entering 1 and 5 will create a new PDF with pages 1 to 5.
+            </p>
+        </div>
     );
-};
 
-export default SplitPDF; 
+    return (
+        <PageContainer
+            title="Split PDF"
+            description="Extract specific pages from your PDF document by selecting a page range."
+        >
+            <div className="space-y-8">
+                {showResult ? (
+                    <ResultView
+                        operationName="Split PDF"
+                        downloadUrl={downloadUrl}
+                        onBack={handleBack}
+                    />
+                ) : (
+                    <PdfOperationForm
+                        onSubmit={handleSubmit}
+                        operationName="Split PDF"
+                        maxFileSize={50}
+                        additionalFields={PageRangeSelector}
+                        onComplete={handleComplete}
+                    />
+                )}
+
+                <div className="mt-8 border-t border-gray-200 pt-8">
+                    <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                        About PDF Splitting
+                    </h2>
+                    <div className="prose prose-indigo max-w-none">
+                        <p>
+                            Our PDF splitting tool allows you to extract specific pages from your PDF documents. Here&apos;s what you can do:
+                        </p>
+                        <ul>
+                            <li>Extract any range of pages from your PDF</li>
+                            <li>Create a new PDF with only the pages you need</li>
+                            <li>Maintain original formatting and quality</li>
+                            <li>Process files up to 50MB</li>
+                            <li>Download the split PDF instantly</li>
+                        </ul>
+                        <div className="bg-blue-50 p-4 rounded-md mt-4">
+                            <p className="text-sm text-blue-700">
+                                <strong>Tip:</strong> Make sure to enter valid page numbers that exist in your PDF. 
+                                The tool will automatically validate your input to prevent errors.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </PageContainer>
+    );
+} 
