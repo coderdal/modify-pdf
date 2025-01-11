@@ -5,14 +5,16 @@ import { useDropzone } from 'react-dropzone';
 
 interface FileInputProps {
     onFileSelect: (files: File | File[]) => void;
-    accept?: string;
+    accept?: Record<string, string[]>;
     multiple?: boolean;
     maxFileSize?: number;
 }
 
 export default function FileInput({
     onFileSelect,
-    accept = '.pdf',
+    accept = {
+        'application/pdf': ['.pdf']
+    },
     multiple = false,
     maxFileSize = 10
 }: FileInputProps) {
@@ -29,7 +31,7 @@ export default function FileInput({
 
     const { getRootProps, getInputProps, isDragActive } = useDropzone({
         onDrop,
-        accept: accept ? { [accept]: [] } : undefined,
+        accept,
         multiple
     });
 

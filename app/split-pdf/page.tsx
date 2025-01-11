@@ -2,56 +2,91 @@
 
 import { useState } from 'react';
 import axios from 'axios';
+import { PDFDocument } from 'pdf-lib';
 import PageContainer from '../components/common/PageContainer';
 import PdfOperationForm from '../components/molecules/PdfOperationForm';
 import ResultView from '../components/molecules/ResultView';
+import Alert from '../components/atoms/Alert';
+
+interface ErrorResponse {
+    status: string;
+    message: string;
+    code: string;
+}
 
 export default function SplitPDF() {
-    const [fromPage, setFromPage] = useState('');
-    const [toPage, setToPage] = useState('');
+    const [fromPage, setFromPage] = useState<number>(1);
+    const [toPage, setToPage] = useState<number>(1);
+    const [maxPage, setMaxPage] = useState<number>(1);
     const [downloadUrl, setDownloadUrl] = useState<string>('');
     const [showResult, setShowResult] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
 
-    const handleSubmit = async (file: File) => {
-        if (!fromPage || !toPage) {
-            throw new Error('Please enter both from and to page numbers');
-        }
-
-        const fromPageNum = parseInt(fromPage);
-        const toPageNum = parseInt(toPage);
-
-        if (isNaN(fromPageNum) || isNaN(toPageNum)) {
-            throw new Error('Please enter valid page numbers');
-        }
-
-        if (fromPageNum < 1) {
-            throw new Error('From page must be at least 1');
-        }
-
-        if (fromPageNum > toPageNum) {
-            throw new Error('From page cannot be greater than to page');
-        }
-
-        const formData = new FormData();
-        formData.append('pdf', file);
-        formData.append('fromPage', fromPage);
-        formData.append('toPage', toPage);
-
-        const response = await axios.post<{ status: string; data: { filePath: string } }>(
-            'http://localhost:3001/split-pdf',
-            formData,
-            {
-                headers: { 'Content-Type': 'multipart/form-data' },
+    const getErrorMessage = (error: unknown): string => {
+        if (error && typeof error === 'object' && 'response' in error) {
+            const err = error as { response?: { status?: number; data?: ErrorResponse } };
+            if (err.response?.data) {
+                return err.response.data.message;
             }
-        );
-
-        if (response.data.status !== 'success') {
-            throw new Error('Failed to split PDF');
+            switch (err.response?.status) {
+                case 400:
+                    return 'Invalid request. Please check your file and page range.';
+                case 413:
+                    return 'File size is too large. Please try a smaller file.';
+                case 415:
+                    return 'Invalid file type. Please upload a PDF file.';
+                case 429:
+                    return 'Too many requests. Please try again later.';
+                case 500:
+                    return 'Server error. Please try again later.';
+                default:
+                    return 'An error occurred while processing your request.';
+            }
         }
+        return 'An unexpected error occurred.';
+    };
 
-        setDownloadUrl(response.data.data.filePath);
-        // Automatically open download in new tab
-        window.open(response.data.data.filePath, '_blank');
+    const handleSubmit = async (files: File | File[]): Promise<void> => {
+        setError(null);
+        setIsLoading(true);
+        
+        try {
+            if (fromPage > toPage) {
+                throw new Error('Start page cannot be greater than end page');
+            }
+            
+            const file = Array.isArray(files) ? files[0] : files;
+            if (!file) {
+                throw new Error('Please select a file');
+            }
+
+            const formData = new FormData();
+            formData.append('pdf', file);
+            formData.append('fromPage', fromPage.toString());
+            formData.append('toPage', toPage.toString());
+
+            const response = await axios.post<{ status: string; data: { filePath: string } }>(
+                'http://localhost:3001/split-pdf',
+                formData,
+                {
+                    headers: { 'Content-Type': 'multipart/form-data' },
+                }
+            );
+
+            if (response.data.status === 'success') {
+                setDownloadUrl(response.data.data.filePath);
+                window.open(response.data.data.filePath, '_blank');
+                setShowResult(true);
+            } else {
+                throw new Error('Failed to split PDF');
+            }
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : getErrorMessage(err);
+            setError(errorMessage);
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     const handleComplete = (success: boolean) => {
@@ -63,42 +98,61 @@ export default function SplitPDF() {
     const handleBack = () => {
         setShowResult(false);
         setDownloadUrl('');
-        setFromPage('');
-        setToPage('');
+        setError(null);
+        setFromPage(1);
+        setToPage(1);
     };
 
-    const PageRangeSelector = (
-        <div className="mt-6 space-y-6">
-            <div className="grid grid-cols-2 gap-4">
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                        From Page
-                    </label>
-                    <input
-                        type="number"
-                        min="1"
-                        value={fromPage}
-                        onChange={(e) => setFromPage(e.target.value)}
-                        placeholder="1"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                    />
-                </div>
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                        To Page
-                    </label>
-                    <input
-                        type="number"
-                        min="1"
-                        value={toPage}
-                        onChange={(e) => setToPage(e.target.value)}
-                        placeholder="e.g., 5"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                    />
-                </div>
+    const handleFileSelect = async (files: File | File[]): Promise<void> => {
+        setError(null);
+        try {
+            const file = Array.isArray(files) ? files[0] : files;
+            if (!file) {
+                throw new Error('Please select a file');
+            }
+
+            const fileBuffer = await file.arrayBuffer();
+            const pdfDoc = await PDFDocument.load(fileBuffer);
+            const pageCount = pdfDoc.getPageCount();
+            setMaxPage(pageCount);
+            setToPage(pageCount);
+        } catch {
+            setError('Failed to read PDF file. Please make sure it is a valid PDF.');
+        }
+    };
+
+    const PageRangeFields = (
+        <div className="mt-6 grid grid-cols-2 gap-4">
+            <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                    From Page
+                </label>
+                <input
+                    type="number"
+                    min={1}
+                    max={maxPage}
+                    value={fromPage}
+                    onChange={(e) => setFromPage(Math.max(1, Math.min(maxPage, parseInt(e.target.value) || 1)))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                    required
+                />
             </div>
-            <p className="text-sm text-gray-500">
-                Enter the range of pages you want to extract. For example, entering 1 and 5 will create a new PDF with pages 1 to 5.
+            <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                    To Page
+                </label>
+                <input
+                    type="number"
+                    min={1}
+                    max={maxPage}
+                    value={toPage}
+                    onChange={(e) => setToPage(Math.max(1, Math.min(maxPage, parseInt(e.target.value) || 1)))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                    required
+                />
+            </div>
+            <p className="col-span-2 text-sm text-gray-500 mt-1">
+                This PDF has {maxPage} page{maxPage !== 1 ? 's' : ''}
             </p>
         </div>
     );
@@ -106,9 +160,17 @@ export default function SplitPDF() {
     return (
         <PageContainer
             title="Split PDF"
-            description="Extract specific pages from your PDF document by selecting a page range."
+            description="Extract specific pages from your PDF document."
         >
             <div className="space-y-8">
+                {error && (
+                    <Alert
+                        type="error"
+                        message={error}
+                        onClose={() => setError(null)}
+                    />
+                )}
+
                 {showResult ? (
                     <ResultView
                         operationName="Split PDF"
@@ -120,8 +182,10 @@ export default function SplitPDF() {
                         onSubmit={handleSubmit}
                         operationName="Split PDF"
                         maxFileSize={50}
-                        additionalFields={PageRangeSelector}
+                        additionalFields={PageRangeFields}
                         onComplete={handleComplete}
+                        onFileSelect={handleFileSelect}
+                        isLoading={isLoading}
                     />
                 )}
 
@@ -131,19 +195,16 @@ export default function SplitPDF() {
                     </h2>
                     <div className="prose prose-indigo max-w-none">
                         <p>
-                            Our PDF splitting tool allows you to extract specific pages from your PDF documents. Here&apos;s what you can do:
+                            Our tool helps you extract specific pages from your PDF documents. Here&apos;s what you need to know:
                         </p>
                         <ul>
-                            <li>Extract any range of pages from your PDF</li>
-                            <li>Create a new PDF with only the pages you need</li>
-                            <li>Maintain original formatting and quality</li>
-                            <li>Process files up to 50MB</li>
-                            <li>Download the split PDF instantly</li>
+                            <li><strong>Page Range:</strong> Select the start and end pages to extract</li>
+                            <li><strong>Preserve Quality:</strong> Your PDF quality remains unchanged</li>
+                            <li><strong>Instant Download:</strong> Get your split PDF immediately after processing</li>
                         </ul>
                         <div className="bg-blue-50 p-4 rounded-md mt-4">
                             <p className="text-sm text-blue-700">
-                                <strong>Tip:</strong> Make sure to enter valid page numbers that exist in your PDF. 
-                                The tool will automatically validate your input to prevent errors.
+                                <strong>Note:</strong> This tool works best with PDFs that are not password protected. If your PDF is protected, please remove the protection first.
                             </p>
                         </div>
                     </div>

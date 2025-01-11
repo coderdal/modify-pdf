@@ -1,129 +1,91 @@
 'use client';
 
-import { useState, useCallback } from 'react';
-import { DndProvider, useDrag, useDrop } from 'react-dnd';
+import { useState } from 'react';
+import axios from 'axios';
+import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
-import { PDFDocument } from 'pdf-lib';
 import PageContainer from '../components/common/PageContainer';
 import PdfOperationForm from '../components/molecules/PdfOperationForm';
 import ResultView from '../components/molecules/ResultView';
-import RenderPdfPage from '../components/RenderPdfPage';
+import Alert from '../components/atoms/Alert';
+import DraggablePageList from '../components/molecules/DraggablePageList';
+import { PDFDocument } from 'pdf-lib';
 
-type DragItem = {
-    type: string;
-    id: number;
-    index: number;
-};
-
-const ItemTypes = {
-    PAGE: 'page',
-};
-
-interface DraggablePageProps {
-    id: number;
-    index: number;
-    moveCard: (dragIndex: number, hoverIndex: number) => void;
-    pdfFile: File;
+interface ErrorResponse {
+    status: string;
+    message: string;
+    code: string;
 }
 
-function DraggablePage({ id, index, moveCard, pdfFile }: DraggablePageProps) {
-    const [{ isDragging }, drag] = useDrag({
-        type: ItemTypes.PAGE,
-        item: { type: ItemTypes.PAGE, id, index },
-        collect: (monitor) => ({
-            isDragging: monitor.isDragging(),
-        }),
-    });
-
-    const [, drop] = useDrop({
-        accept: ItemTypes.PAGE,
-        hover(item: DragItem) {
-            if (item.index === index) {
-                return;
-            }
-            moveCard(item.index, index);
-            item.index = index;
-        },
-    });
-
-    const ref = useCallback((node: HTMLDivElement | null) => {
-        drag(drop(node));
-    }, [drag, drop]);
-
-    return (
-        <div
-            ref={ref}
-            className={`
-                relative border-2 rounded-lg p-2 cursor-move transition-all
-                ${isDragging ? 'opacity-50' : 'opacity-100'}
-                border-gray-300 hover:border-blue-400
-            `}
-        >
-            <RenderPdfPage
-                pageNumber={id + 1}
-                pdfFile={pdfFile}
-                width={150}
-                height={200}
-            />
-            <div className="absolute top-1 right-1 bg-white rounded-full w-5 h-5 flex items-center justify-center border border-gray-300">
-                <span className="text-xs">{id + 1}</span>
-            </div>
-        </div>
-    );
-}
-
-export default function ReorderPDFPages() {
-    const [pdfFile, setPdfFile] = useState<File | null>(null);
-    const [pageOrder, setPageOrder] = useState<number[]>([]);
+export default function ReorderPDF() {
+    const [pages, setPages] = useState<number[]>([]);
     const [downloadUrl, setDownloadUrl] = useState<string>('');
     const [showResult, setShowResult] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
 
-    const handleFileSelect = async (files: File | File[]) => {
-        const file = Array.isArray(files) ? files[0] : files;
-        setPdfFile(file);
-        
-        try {
-            const fileBuffer = await file.arrayBuffer();
-            const document = await PDFDocument.load(fileBuffer);
-            const pageCount = document.getPageCount();
-            setPageOrder(Array.from({ length: pageCount }, (_, i) => i));
-        } catch {
-            throw new Error('Failed to load PDF. Please try again with a valid PDF file.');
+    const getErrorMessage = (error: unknown): string => {
+        if (error && typeof error === 'object' && 'response' in error) {
+            const err = error as { response?: { status?: number; data?: ErrorResponse } };
+            if (err.response?.data) {
+                return err.response.data.message;
+            }
+            switch (err.response?.status) {
+                case 400:
+                    return 'Invalid request. Please check your file and page order.';
+                case 413:
+                    return 'File size is too large. Please try a smaller file.';
+                case 415:
+                    return 'Invalid file type. Please upload a PDF file.';
+                case 429:
+                    return 'Too many requests. Please try again later.';
+                case 500:
+                    return 'Server error. Please try again later.';
+                default:
+                    return 'An error occurred while processing your request.';
+            }
         }
+        return 'An unexpected error occurred.';
     };
 
-    const moveCard = useCallback((dragIndex: number, hoverIndex: number) => {
-        setPageOrder(prevOrder => {
-            const newOrder = [...prevOrder];
-            const [removed] = newOrder.splice(dragIndex, 1);
-            newOrder.splice(hoverIndex, 0, removed);
-            return newOrder;
-        });
-    }, []);
-
-    const handleSubmit = async (files: File | File[]) => {
-        const file = Array.isArray(files) ? files[0] : files;
+    const handleSubmit = async (files: File | File[]): Promise<void> => {
+        setError(null);
+        setIsLoading(true);
         
         try {
-            const fileBuffer = await file.arrayBuffer();
-            const pdfDoc = await PDFDocument.load(fileBuffer);
-            const newPdf = await PDFDocument.create();
+            if (pages.length === 0) {
+                throw new Error('Please select pages to reorder');
+            }
             
-            // Copy pages in the new order
-            for (const pageIndex of pageOrder) {
-                const [page] = await newPdf.copyPages(pdfDoc, [pageIndex]);
-                newPdf.addPage(page);
+            const file = Array.isArray(files) ? files[0] : files;
+            if (!file) {
+                throw new Error('Please select a file');
             }
 
-            const pdfBytes = await newPdf.save();
-            const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-            const url = URL.createObjectURL(blob);
-            setDownloadUrl(url);
+            const formData = new FormData();
+            formData.append('pdf', file);
+            formData.append('pageOrder', pages.join(','));
 
-            // Automatically open download in new tab
-            window.open(url, '_blank');
-        } catch {
-            throw new Error('Failed to reorder PDF pages. Please try again.');
+            const response = await axios.post<{ status: string; data: { filePath: string } }>(
+                'http://localhost:3001/reorder-pdf',
+                formData,
+                {
+                    headers: { 'Content-Type': 'multipart/form-data' },
+                }
+            );
+
+            if (response.data.status === 'success') {
+                setDownloadUrl(response.data.data.filePath);
+                window.open(response.data.data.filePath, '_blank');
+                setShowResult(true);
+            } else {
+                throw new Error('Failed to reorder PDF pages');
+            }
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : getErrorMessage(err);
+            setError(errorMessage);
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -135,46 +97,59 @@ export default function ReorderPDFPages() {
 
     const handleBack = () => {
         setShowResult(false);
-        if (downloadUrl) {
-            URL.revokeObjectURL(downloadUrl);
-        }
         setDownloadUrl('');
-        setPdfFile(null);
-        setPageOrder([]);
+        setError(null);
+        setPages([]);
     };
 
-    const PageReorderer = pdfFile && pageOrder.length > 0 ? (
-        <div className="mt-6 space-y-4">
-            <div className="flex items-center justify-between">
-                <h3 className="text-sm font-medium text-gray-700">
-                    Drag and Drop Pages to Reorder
-                </h3>
-            </div>
+    const handleFileSelect = async (files: File | File[]): Promise<void> => {
+        setError(null);
+        try {
+            const file = Array.isArray(files) ? files[0] : files;
+            if (!file) {
+                throw new Error('Please select a file');
+            }
+
+            const fileBuffer = await file.arrayBuffer();
+            const pdfDoc = await PDFDocument.load(fileBuffer);
+            const pageCount = pdfDoc.getPageCount();
+            setPages(Array.from({ length: pageCount }, (_, i) => i + 1));
+        } catch (error) {
+            setError('Failed to read PDF file. Please make sure it is a valid PDF.');
+        }
+    };
+
+    const PageOrderField = (
+        <div className="mt-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+                Page Order
+            </label>
             <DndProvider backend={HTML5Backend}>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                    {pageOrder.map((pageNum, index) => (
-                        <DraggablePage
-                            key={pageNum}
-                            id={pageNum}
-                            index={index}
-                            moveCard={moveCard}
-                            pdfFile={pdfFile}
-                        />
-                    ))}
-                </div>
+                <DraggablePageList
+                    pages={pages}
+                    onReorder={setPages}
+                />
             </DndProvider>
-            <p className="text-sm text-gray-500 mt-2">
-                Drag and drop pages to rearrange their order. The final PDF will follow this arrangement.
+            <p className="mt-1 text-sm text-gray-500">
+                Drag and drop pages to reorder them
             </p>
         </div>
-    ) : null;
+    );
 
     return (
         <PageContainer
             title="Reorder PDF Pages"
-            description="Rearrange the pages in your PDF document using our intuitive drag-and-drop interface."
+            description="Rearrange the pages in your PDF document easily."
         >
             <div className="space-y-8">
+                {error && (
+                    <Alert
+                        type="error"
+                        message={error}
+                        onClose={() => setError(null)}
+                    />
+                )}
+
                 {showResult ? (
                     <ResultView
                         operationName="Reorder Pages"
@@ -186,9 +161,10 @@ export default function ReorderPDFPages() {
                         onSubmit={handleSubmit}
                         operationName="Reorder Pages"
                         maxFileSize={50}
-                        additionalFields={PageReorderer}
+                        additionalFields={PageOrderField}
                         onComplete={handleComplete}
                         onFileSelect={handleFileSelect}
+                        isLoading={isLoading}
                     />
                 )}
 
@@ -198,19 +174,16 @@ export default function ReorderPDFPages() {
                     </h2>
                     <div className="prose prose-indigo max-w-none">
                         <p>
-                            Our PDF page reordering tool helps you rearrange pages in your PDF documents. Here&apos;s what you can do:
+                            Our tool helps you rearrange pages in your PDF documents easily. Here&apos;s what you need to know:
                         </p>
                         <ul>
-                            <li>Preview all pages before reordering</li>
-                            <li>Drag and drop pages to rearrange them</li>
-                            <li>Maintain original PDF quality</li>
-                            <li>Process files up to 50MB</li>
-                            <li>Download the modified PDF instantly</li>
+                            <li><strong>Simple Interface:</strong> Drag and drop pages to reorder them</li>
+                            <li><strong>Preserve Quality:</strong> Your PDF quality remains unchanged</li>
+                            <li><strong>Instant Download:</strong> Get your reordered PDF immediately after processing</li>
                         </ul>
                         <div className="bg-blue-50 p-4 rounded-md mt-4">
                             <p className="text-sm text-blue-700">
-                                <strong>Tip:</strong> Click and drag a page to move it to a new position. 
-                                The pages will automatically reorder as you drag.
+                                <strong>Note:</strong> This tool works best with PDFs that are not password protected. If your PDF is protected, please remove the protection first.
                             </p>
                         </div>
                     </div>

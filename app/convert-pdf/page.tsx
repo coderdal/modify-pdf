@@ -5,6 +5,7 @@ import axios from 'axios';
 import PageContainer from '../components/common/PageContainer';
 import PdfOperationForm from '../components/molecules/PdfOperationForm';
 import ResultView from '../components/molecules/ResultView';
+import Alert from '../components/atoms/Alert';
 
 const EXPORT_FORMATS = {
     docx: { label: 'Word Document (DOCX)', value: 'docx' },
@@ -12,32 +13,73 @@ const EXPORT_FORMATS = {
     png: { label: 'PNG Images (ZIP)', value: 'png' }
 } as const;
 
+interface ErrorResponse {
+    status: string;
+    message: string;
+    code: string;
+}
+
 export default function ConvertPDF() {
     const [exportFormat, setExportFormat] = useState<keyof typeof EXPORT_FORMATS>('docx');
     const [downloadUrl, setDownloadUrl] = useState<string>('');
     const [showResult, setShowResult] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
-    const handleSubmit = async (file: File) => {
-        const formData = new FormData();
-        formData.append('pdf', file);
-        formData.append('inputFormat', 'pdf');
-        formData.append('exportFormat', exportFormat);
-
-        const response = await axios.post<{ status: string; data: { filePath: string } }>(
-            'http://localhost:3001/convert-pdf',
-            formData,
-            {
-                headers: { 'Content-Type': 'multipart/form-data' },
+    const getErrorMessage = (error: unknown): string => {
+        if (error && typeof error === 'object' && 'response' in error) {
+            const err = error as { response?: { status?: number; data?: ErrorResponse } };
+            if (err.response?.data) {
+                return err.response.data.message;
             }
-        );
+            switch (err.response?.status) {
+                case 400:
+                    return 'Invalid request. Please check your file and try again.';
+                case 413:
+                    return 'File size is too large. Please try a smaller file.';
+                case 415:
+                    return 'Invalid file type. Please upload a PDF file.';
+                case 429:
+                    return 'Too many requests. Please try again later.';
+                case 500:
+                    return 'Server error. Please try again later.';
+                default:
+                    return 'An error occurred while processing your request.';
+            }
+        }
+        return 'An unexpected error occurred.';
+    };
 
-        if (response.data.status !== 'success') {
-            throw new Error('Failed to convert PDF');
+    const handleSubmit = async (files: File | File[]) => {
+        setError(null);
+        
+        const file = Array.isArray(files) ? files[0] : files;
+        if (!file) {
+            throw new Error('Please select a file');
         }
 
-        setDownloadUrl(response.data.data.filePath);
-        // Automatically open download in new tab
-        window.open(response.data.data.filePath, '_blank');
+        const formData = new FormData();
+        formData.append('pdf', file);
+        formData.append('exportFormat', exportFormat);
+
+        try {
+            const response = await axios.post<{ status: string; data: { filePath: string; extension: string } }>(
+                'http://localhost:3001/convert-pdf',
+                formData,
+                {
+                    headers: { 'Content-Type': 'multipart/form-data' },
+                }
+            );
+
+            if (response.data.status === 'success') {
+                setDownloadUrl(response.data.data.filePath);
+                window.open(response.data.data.filePath, '_blank');
+            } else {
+                throw new Error('Failed to convert PDF');
+            }
+        } catch (err) {
+            const errorMessage = getErrorMessage(err);
+            throw new Error(errorMessage);
+        }
     };
 
     const handleComplete = (success: boolean) => {
@@ -49,12 +91,13 @@ export default function ConvertPDF() {
     const handleBack = () => {
         setShowResult(false);
         setDownloadUrl('');
+        setError(null);
     };
 
     const FormatSelector = (
         <div className="mt-6">
             <label className="block text-sm font-medium text-gray-700 mb-2">
-                Convert To
+                Export Format
             </label>
             <select
                 value={exportFormat}
@@ -73,9 +116,17 @@ export default function ConvertPDF() {
     return (
         <PageContainer
             title="Convert PDF"
-            description="Convert your PDF files to various formats including Word documents and images. Our tool ensures high-quality conversion while maintaining the original formatting."
+            description="Convert your PDF files to various formats while maintaining quality. Choose from Word documents or image formats."
         >
             <div className="space-y-8">
+                {error && (
+                    <Alert
+                        type="error"
+                        message={error}
+                        onClose={() => setError(null)}
+                    />
+                )}
+
                 {showResult ? (
                     <ResultView
                         operationName="Convert PDF"
@@ -86,7 +137,7 @@ export default function ConvertPDF() {
                     <PdfOperationForm
                         onSubmit={handleSubmit}
                         operationName="Convert PDF"
-                        maxFileSize={20}
+                        maxFileSize={50}
                         additionalFields={FormatSelector}
                         onComplete={handleComplete}
                     />
@@ -101,12 +152,14 @@ export default function ConvertPDF() {
                             Our PDF conversion tool allows you to convert your PDF files to various formats while maintaining the highest quality possible. Here&apos;s what you can do:
                         </p>
                         <ul>
-                            <li>Convert PDF to Word (DOCX) - Perfect for editing text</li>
-                            <li>Convert PDF to Images (JPEG/PNG) - Ideal for sharing on social media</li>
-                            <li>Maintain original formatting and layout</li>
-                            <li>Process files up to 20MB</li>
-                            <li>Secure and private conversion</li>
+                            <li><strong>Convert to Word (DOCX)</strong> - Perfect for editing text and content</li>
+                            <li><strong>Convert to Images (JPEG/PNG)</strong> - Great for sharing on social media or using in presentations</li>
                         </ul>
+                        <div className="bg-blue-50 p-4 rounded-md mt-4">
+                            <p className="text-sm text-blue-700">
+                                <strong>Note:</strong> When converting to images, you&apos;ll receive a ZIP file containing all pages as separate image files.
+                            </p>
+                        </div>
                     </div>
                 </div>
             </div>

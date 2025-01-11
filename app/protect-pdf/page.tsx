@@ -5,36 +5,87 @@ import axios from 'axios';
 import PageContainer from '../components/common/PageContainer';
 import PdfOperationForm from '../components/molecules/PdfOperationForm';
 import ResultView from '../components/molecules/ResultView';
+import Alert from '../components/atoms/Alert';
+
+interface ErrorResponse {
+    status: string;
+    message: string;
+    code: string;
+}
 
 export default function ProtectPDF() {
     const [password, setPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
     const [downloadUrl, setDownloadUrl] = useState<string>('');
     const [showResult, setShowResult] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
-    const handleSubmit = async (file: File) => {
-        if (!password || password.length < 6) {
+    const getErrorMessage = (error: unknown): string => {
+        if (error && typeof error === 'object' && 'response' in error) {
+            const err = error as { response?: { status?: number; data?: ErrorResponse } };
+            if (err.response?.data) {
+                return err.response.data.message;
+            }
+            switch (err.response?.status) {
+                case 400:
+                    return 'Invalid request. Please check your file and password.';
+                case 413:
+                    return 'File size is too large. Please try a smaller file.';
+                case 415:
+                    return 'Invalid file type. Please upload a PDF file.';
+                case 429:
+                    return 'Too many requests. Please try again later.';
+                case 500:
+                    return 'Server error. Please try again later.';
+                default:
+                    return 'An error occurred while processing your request.';
+            }
+        }
+        return 'An unexpected error occurred.';
+    };
+
+    const validatePasswords = () => {
+        if (password.length < 6) {
             throw new Error('Password must be at least 6 characters long');
         }
-
-        const formData = new FormData();
-        formData.append('pdf', file);
-        formData.append('password', password);
-
-        const response = await axios.post<{ status: string; data: { filePath: string } }>(
-            'http://localhost:3001/protect-pdf',
-            formData,
-            {
-                headers: { 'Content-Type': 'multipart/form-data' },
-            }
-        );
-
-        if (response.data.status !== 'success') {
-            throw new Error('Failed to protect PDF');
+        if (password !== confirmPassword) {
+            throw new Error('Passwords do not match');
         }
+    };
 
-        setDownloadUrl(response.data.data.filePath);
-        // Automatically open download in new tab
-        window.open(response.data.data.filePath, '_blank');
+    const handleSubmit = async (files: File | File[]) => {
+        setError(null);
+        
+        try {
+            validatePasswords();
+            
+            const file = Array.isArray(files) ? files[0] : files;
+            if (!file) {
+                throw new Error('Please select a file');
+            }
+
+            const formData = new FormData();
+            formData.append('pdf', file);
+            formData.append('password', password);
+
+            const response = await axios.post<{ status: string; data: { filePath: string } }>(
+                'http://localhost:3001/protect-pdf',
+                formData,
+                {
+                    headers: { 'Content-Type': 'multipart/form-data' },
+                }
+            );
+
+            if (response.data.status === 'success') {
+                setDownloadUrl(response.data.data.filePath);
+                window.open(response.data.data.filePath, '_blank');
+            } else {
+                throw new Error('Failed to protect PDF');
+            }
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : getErrorMessage(err);
+            throw new Error(errorMessage);
+        }
     };
 
     const handleComplete = (success: boolean) => {
@@ -46,35 +97,61 @@ export default function ProtectPDF() {
     const handleBack = () => {
         setShowResult(false);
         setDownloadUrl('');
+        setError(null);
         setPassword('');
+        setConfirmPassword('');
     };
 
-    const PasswordInput = (
-        <div className="mt-6">
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-                Password
-            </label>
-            <input
-                type="password"
-                id="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter password to protect PDF"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                minLength={6}
-            />
-            <p className="mt-1 text-sm text-gray-500">
-                Password must be at least 6 characters long
-            </p>
+    const PasswordFields = (
+        <div className="mt-6 space-y-4">
+            <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Password
+                </label>
+                <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                    placeholder="Enter password"
+                    minLength={6}
+                    required
+                />
+                <p className="mt-1 text-sm text-gray-500">
+                    Must be at least 6 characters long
+                </p>
+            </div>
+            <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Confirm Password
+                </label>
+                <input
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                    placeholder="Confirm password"
+                    minLength={6}
+                    required
+                />
+            </div>
         </div>
     );
 
     return (
         <PageContainer
-            title="Protect PDF with Password"
-            description="Add password protection to your PDF files. Keep your documents secure and control who can access them."
+            title="Protect PDF"
+            description="Add password protection to your PDF files with strong encryption."
         >
             <div className="space-y-8">
+                {error && (
+                    <Alert
+                        type="error"
+                        message={error}
+                        onClose={() => setError(null)}
+                    />
+                )}
+
                 {showResult ? (
                     <ResultView
                         operationName="Protect PDF"
@@ -86,7 +163,7 @@ export default function ProtectPDF() {
                         onSubmit={handleSubmit}
                         operationName="Protect PDF"
                         maxFileSize={50}
-                        additionalFields={PasswordInput}
+                        additionalFields={PasswordFields}
                         onComplete={handleComplete}
                     />
                 )}
@@ -97,19 +174,16 @@ export default function ProtectPDF() {
                     </h2>
                     <div className="prose prose-indigo max-w-none">
                         <p>
-                            Our PDF protection tool helps you secure your documents with password encryption. Here&apos;s what you need to know:
+                            Our PDF protection tool allows you to secure your PDF files with password encryption. Features include:
                         </p>
                         <ul>
-                            <li>Strong password protection using industry-standard encryption</li>
-                            <li>Prevents unauthorized access to your documents</li>
-                            <li>Password required to open the protected PDF</li>
-                            <li>Works with all PDF readers that support encryption</li>
-                            <li>Process files up to 50MB</li>
+                            <li><strong>Strong Encryption:</strong> Uses AES-256 encryption for maximum security</li>
+                            <li><strong>Password Protection:</strong> Prevent unauthorized access to your documents</li>
+                            <li><strong>Secure Process:</strong> Your files are processed securely and deleted after download</li>
                         </ul>
                         <div className="bg-yellow-50 p-4 rounded-md mt-4">
                             <p className="text-sm text-yellow-700">
-                                <strong>Important:</strong> Make sure to save your password in a secure place. 
-                                If you lose the password, you won&apos;t be able to open the protected PDF.
+                                <strong>Important:</strong> Please remember your password! There is no way to recover the PDF if you forget it.
                             </p>
                         </div>
                     </div>

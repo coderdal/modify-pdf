@@ -5,6 +5,7 @@ import axios from 'axios';
 import PageContainer from '../components/common/PageContainer';
 import PdfOperationForm from '../components/molecules/PdfOperationForm';
 import ResultView from '../components/molecules/ResultView';
+import Alert from '../components/atoms/Alert';
 
 const COMPRESSION_LEVELS = {
     LOW: { label: 'Low (Better Quality)', value: 'LOW' },
@@ -12,31 +13,71 @@ const COMPRESSION_LEVELS = {
     HIGH: { label: 'High (Smallest Size)', value: 'HIGH' }
 } as const;
 
+interface ErrorResponse {
+    status: string;
+    message: string;
+    code: string;
+}
+
 export default function CompressPDF() {
     const [compressionLevel, setCompressionLevel] = useState<keyof typeof COMPRESSION_LEVELS>('MEDIUM');
     const [downloadUrl, setDownloadUrl] = useState<string>('');
     const [showResult, setShowResult] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
-    const handleSubmit = async (file: File) => {
+    const getErrorMessage = (error: unknown): string => {
+        if (error && typeof error === 'object' && 'response' in error) {
+            const err = error as { response?: { status?: number; data?: ErrorResponse } };
+            if (err.response?.data) {
+                return err.response.data.message;
+            }
+            switch (err.response?.status) {
+                case 400:
+                    return 'Invalid request. Please check your file and try again.';
+                case 413:
+                    return 'File size is too large. Please try a smaller file.';
+                case 415:
+                    return 'Invalid file type. Please upload a PDF file.';
+                case 500:
+                    return 'Server error. Please try again later.';
+                default:
+                    return 'An error occurred while processing your request.';
+            }
+        }
+        return 'An unexpected error occurred.';
+    };
+
+    const handleSubmit = async (files: File | File[]) => {
+        setError(null);
+        
+        const file = Array.isArray(files) ? files[0] : files;
+        if (!file) {
+            throw new Error('Please select a file');
+        }
+
         const formData = new FormData();
         formData.append('pdf', file);
         formData.append('compressionLevel', compressionLevel);
 
-        const response = await axios.post<{ status: string; data: { filePath: string } }>(
-            'http://localhost:3001/compress-pdf',
-            formData,
-            {
-                headers: { 'Content-Type': 'multipart/form-data' },
+        try {
+            const response = await axios.post<{ status: string; data: { filePath: string } }>(
+                'http://localhost:3001/compress-pdf',
+                formData,
+                {
+                    headers: { 'Content-Type': 'multipart/form-data' },
+                }
+            );
+
+            if (response.data.status === 'success') {
+                setDownloadUrl(response.data.data.filePath);
+                window.open(response.data.data.filePath, '_blank');
+            } else {
+                throw new Error('Failed to compress PDF');
             }
-        );
-
-        if (response.data.status !== 'success') {
-            throw new Error('Failed to compress PDF');
+        } catch (err) {
+            const errorMessage = getErrorMessage(err);
+            throw new Error(errorMessage);
         }
-
-        setDownloadUrl(response.data.data.filePath);
-        // Automatically open download in new tab
-        window.open(response.data.data.filePath, '_blank');
     };
 
     const handleComplete = (success: boolean) => {
@@ -48,6 +89,7 @@ export default function CompressPDF() {
     const handleBack = () => {
         setShowResult(false);
         setDownloadUrl('');
+        setError(null);
     };
 
     const CompressionSelector = (
@@ -75,6 +117,14 @@ export default function CompressPDF() {
             description="Reduce your PDF file size while maintaining quality. Our tool ensures the best balance between size and quality."
         >
             <div className="space-y-8">
+                {error && (
+                    <Alert
+                        type="error"
+                        message={error}
+                        onClose={() => setError(null)}
+                    />
+                )}
+
                 {showResult ? (
                     <ResultView
                         operationName="Compress PDF"
