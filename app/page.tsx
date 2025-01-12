@@ -3,67 +3,73 @@ import Link from 'next/link';
 const features = [
     {
         title: 'Convert PDF',
-        description: 'Convert PDFs to various formats including Word, Images, and more',
+        description: 'Transform your PDFs into Word documents, high-quality images, or other formats while preserving formatting',
         href: '/convert-pdf',
         icon: '📄'
     },
     {
         title: 'Compress PDF',
-        description: 'Reduce PDF file size while maintaining quality',
+        description: 'Smart compression technology to reduce PDF size by up to 70% without compromising document quality',
         href: '/compress-pdf',
         icon: '🗜️'
     },
     {
+        title: 'OCR PDF',
+        description: 'Convert scanned documents and images into searchable, selectable PDFs with high accuracy',
+        href: '/ocr-pdf',
+        icon: '🔍'
+    },
+    {
         title: 'Protect PDF',
-        description: 'Secure your PDFs with password protection',
+        description: 'Add military-grade encryption and password protection to keep your sensitive documents secure',
         href: '/protect-pdf',
         icon: '🔒'
     },
     {
         title: 'Split PDF',
-        description: 'Split your PDF into multiple documents',
+        description: 'Extract pages or split large PDFs into smaller documents with just a few clicks',
         href: '/split-pdf',
         icon: '✂️'
     },
     {
         title: 'Merge PDFs',
-        description: 'Combine multiple PDFs into a single document',
+        description: 'Combine multiple PDFs into one organized document while maintaining original quality',
         href: '/merge-pdf',
         icon: '🔗'
     },
     {
         title: 'Remove Protection',
-        description: 'Remove password protection from PDFs',
+        description: 'Legally remove password protection and restrictions from PDF files you own',
         href: '/remove-pdf-protection',
         icon: '🔓'
     },
     {
         title: 'Rotate PDF',
-        description: 'Rotate PDF pages to any angle',
+        description: 'Fix page orientation issues by rotating pages individually or all at once',
         href: '/rotate-pdf',
         icon: '🔄'
     },
     {
         title: 'Remove Pages',
-        description: 'Delete specific pages from your PDF',
+        description: 'Clean up your PDFs by removing unwanted pages while keeping document integrity',
         href: '/remove-pdf-pages',
         icon: '🗑️'
     },
     {
         title: 'Add Page Numbers',
-        description: 'Add custom page numbers to your PDF',
+        description: 'Professionally number your pages with custom formats, positions, and styling',
         href: '/add-page-number',
         icon: '📝'
     },
     {
         title: 'Extract Text',
-        description: 'Extract text content from PDF documents',
+        description: 'Pull out text content from PDFs with smart formatting detection and layout preservation',
         href: '/extract-pdf-text',
         icon: '📋'
     },
     {
         title: 'Reorder Pages',
-        description: 'Rearrange pages in your PDF document',
+        description: 'Drag and drop to reorganize PDF pages into any sequence you need',
         href: '/reorder-pdf',
         icon: '📑'
     }
@@ -87,13 +93,10 @@ export default function Home() {
                                 </p>
                                 <div className="mt-10 flex items-center gap-x-6">
                                     <Link
-                                        href="/convert-pdf"
+                                        href="#features"
                                         className="rounded-md bg-indigo-600 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
                                     >
-                                        Get Started
-                                    </Link>
-                                    <Link href="#features" className="text-sm font-semibold leading-6 text-gray-900">
-                                        View all tools <span aria-hidden="true">→</span>
+                                        Get Started <span aria-hidden="true" className="ml-1">↓</span>
                                     </Link>
                                 </div>
                             </div>
@@ -138,15 +141,15 @@ export default function Home() {
                     <dl className="grid grid-cols-1 gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 xl:gap-x-8">
                         {features.map((feature) => (
                             <Link key={feature.title} href={feature.href} className="group">
-                                <div className="relative flex flex-col rounded-2xl border border-gray-200 p-6 hover:border-indigo-600 hover:shadow-md transition-all duration-200">
+                                <div className="relative flex flex-col rounded-2xl border border-gray-200 p-6 hover:border-indigo-600 hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
                                     <dt className="flex items-center gap-x-3 text-lg font-semibold leading-7 text-gray-900">
-                                        <span className="text-2xl flex-none">{feature.icon}</span>
+                                        <span className="text-2xl flex-none bg-indigo-50 p-2 rounded-lg">{feature.icon}</span>
                                         {feature.title}
                                     </dt>
                                     <dd className="mt-4 flex flex-auto flex-col text-base leading-7 text-gray-600">
                                         <p className="flex-auto">{feature.description}</p>
-                                        <p className="mt-6 text-sm font-semibold text-indigo-600 group-hover:text-indigo-500">
-                                            Use tool →
+                                        <p className="mt-6 text-sm font-semibold text-indigo-600 group-hover:text-indigo-500 flex items-center">
+                                            Use tool <span className="ml-1 transition-transform group-hover:translate-x-1">→</span>
                                         </p>
                                     </dd>
                                 </div>
