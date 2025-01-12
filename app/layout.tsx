@@ -23,9 +23,7 @@ export default function RootLayout({
               <div className="flex items-center">
                 <a href="/" className="text-xl font-bold text-indigo-600">PDF Toolkit</a>
               </div>
-              <div className="flex items-center space-x-6">
-                <a href="/privacy-policy" className="text-sm text-gray-500 hover:text-gray-900">Privacy Policy</a>
-                <a href="/terms" className="text-sm text-gray-500 hover:text-gray-900">Terms</a>
+              <div className="flex items-center">
                 <a 
                   href="https://linkedin.com/in/muhammederdal" 
                   target="_blank" 
@@ -47,9 +45,20 @@ export default function RootLayout({
 
           <footer className="bg-gray-50">
             <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
-              <p className="text-center text-gray-500 text-sm">
-                © {new Date().getFullYear()} PDF Toolkit. All rights reserved.
-              </p>
+              <div className="flex flex-col items-center space-y-4">
+                <div className="flex space-x-4 text-sm">
+                  <a href="/legal/privacy-policy" className="text-gray-500 hover:text-gray-900">Privacy Policy</a>
+                  <span className="text-gray-300">|</span>
+                  <a href="/legal/terms-of-service" className="text-gray-500 hover:text-gray-900">Terms of Service</a>
+                  <span className="text-gray-300">|</span>
+                  <a href="/legal/cookie-policy" className="text-gray-500 hover:text-gray-900">Cookie Policy</a>
+                  <span className="text-gray-300">|</span>
+                  <a href="/legal/disclaimer" className="text-gray-500 hover:text-gray-900">Disclaimer</a>
+                </div>
+                <p className="text-center text-gray-500 text-sm">
+                  © {new Date().getFullYear()} PDF Toolkit. All rights reserved.
+                </p>
+              </div>
             </div>
           </footer>
         </div>
