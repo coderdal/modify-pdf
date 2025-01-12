@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import axios from 'axios';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
@@ -10,6 +10,7 @@ import ResultView from '../components/molecules/ResultView';
 import Alert from '../components/atoms/Alert';
 import DraggablePageList from '../components/molecules/DraggablePageList';
 import { PDFDocument } from 'pdf-lib';
+import Button from '../components/atoms/Button';
 
 interface ErrorResponse {
     status: string;
@@ -17,12 +18,69 @@ interface ErrorResponse {
     code: string;
 }
 
+interface ValidationState {
+    isValid: boolean;
+    error?: string;
+}
+
 export default function ReorderPDF() {
     const [pages, setPages] = useState<number[]>([]);
+    const [originalOrder, setOriginalOrder] = useState<number[]>([]);
     const [downloadUrl, setDownloadUrl] = useState<string>('');
     const [showResult, setShowResult] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
+    const [validation, setValidation] = useState<ValidationState>({ isValid: true });
+
+    const validatePageOrder = useCallback((newPages: number[]): ValidationState => {
+        if (newPages.length === 0) {
+            return {
+                isValid: false,
+                error: 'Please select a PDF file to reorder pages'
+            };
+        }
+
+        const uniquePages = new Set(newPages);
+        if (uniquePages.size !== newPages.length) {
+            return {
+                isValid: false,
+                error: 'Each page can only appear once in the order'
+            };
+        }
+
+        const hasAllPages = newPages.every(page => 
+            page >= 1 && page <= originalOrder.length
+        );
+        if (!hasAllPages) {
+            return {
+                isValid: false,
+                error: 'Invalid page numbers detected'
+            };
+        }
+
+        if (JSON.stringify(newPages) === JSON.stringify(originalOrder)) {
+            return {
+                isValid: false,
+                error: 'Please change the page order before submitting'
+            };
+        }
+
+        return { isValid: true };
+    }, [originalOrder]);
+
+    const handlePageOrderChange = useCallback((newPages: number[]) => {
+        setPages(newPages);
+        setValidation(validatePageOrder(newPages));
+    }, [validatePageOrder]);
+
+    const handleReverseOrder = useCallback(() => {
+        const newPages = [...pages].reverse();
+        handlePageOrderChange(newPages);
+    }, [pages, handlePageOrderChange]);
+
+    const handleRestoreOrder = useCallback(() => {
+        handlePageOrderChange([...originalOrder]);
+    }, [originalOrder, handlePageOrderChange]);
 
     const getErrorMessage = (error: unknown): string => {
         if (error && typeof error === 'object' && 'response' in error) {
@@ -53,8 +111,9 @@ export default function ReorderPDF() {
         setIsLoading(true);
         
         try {
-            if (pages.length === 0) {
-                throw new Error('Please select pages to reorder');
+            const validationResult = validatePageOrder(pages);
+            if (!validationResult.isValid) {
+                throw new Error(validationResult.error);
             }
             
             const file = Array.isArray(files) ? files[0] : files;
@@ -100,6 +159,11 @@ export default function ReorderPDF() {
         setDownloadUrl('');
         setError(null);
         setPages([]);
+        setOriginalOrder([]);
+        setValidation({ 
+            isValid: false,
+            error: 'Please select a PDF file to reorder pages'
+        });
     };
 
     const handleFileSelect = async (files: File | File[]): Promise<void> => {
@@ -113,26 +177,68 @@ export default function ReorderPDF() {
             const fileBuffer = await file.arrayBuffer();
             const pdfDoc = await PDFDocument.load(fileBuffer);
             const pageCount = pdfDoc.getPageCount();
-            setPages(Array.from({ length: pageCount }, (_, i) => i + 1));
-        } catch (error) {
+            const newPages = Array.from({ length: pageCount }, (_, i) => i + 1);
+            setOriginalOrder(newPages);
+            setPages(newPages);
+            setValidation({ 
+                isValid: false,
+                error: 'Please change the page order before submitting'
+            });
+        } catch {
             setError('Failed to read PDF file. Please make sure it is a valid PDF.');
+            setValidation({ isValid: false, error: 'Failed to read PDF file' });
         }
     };
 
     const PageOrderField = (
-        <div className="mt-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-                Page Order
-            </label>
+        <div className="mt-6 space-y-4">
+            <div className="flex items-center justify-between">
+                <label className="block text-sm font-medium text-gray-700">
+                    Page Order
+                </label>
+                <div className="flex space-x-2">
+                    <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={handleReverseOrder}
+                        disabled={pages.length === 0}
+                        title="Reverse current page order"
+                    >
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                        </svg>
+                        <span className="ml-2">Reverse Order</span>
+                    </Button>
+                    <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={handleRestoreOrder}
+                        disabled={pages.length === 0 || JSON.stringify(pages) === JSON.stringify(originalOrder)}
+                        title="Restore original page order"
+                    >
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        <span className="ml-2">Restore Order</span>
+                    </Button>
+                </div>
+            </div>
             <DndProvider backend={HTML5Backend}>
                 <DraggablePageList
                     pages={pages}
-                    onReorder={setPages}
+                    onReorder={handlePageOrderChange}
                 />
             </DndProvider>
-            <p className="mt-1 text-sm text-gray-500">
-                Drag and drop pages to reorder them
-            </p>
+            <div className="space-y-1">
+                <p className="text-sm text-gray-500">
+                    Drag and drop pages to reorder them. Use arrow keys to move selected pages.
+                </p>
+                {!validation.isValid && validation.error && (
+                    <p className="text-sm text-red-500">
+                        {validation.error}
+                    </p>
+                )}
+            </div>
         </div>
     );
 
@@ -165,6 +271,7 @@ export default function ReorderPDF() {
                         onComplete={handleComplete}
                         onFileSelect={handleFileSelect}
                         isLoading={isLoading}
+                        isValid={validation.isValid}
                     />
                 )}
 

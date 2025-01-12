@@ -16,6 +16,19 @@ interface PageNumberOptions {
     fontSize: number;
 }
 
+interface ValidationState {
+    isValid: boolean;
+    errors: {
+        startFrom?: string;
+        fontSize?: string;
+    };
+}
+
+const MIN_FONT_SIZE = 8;
+const MAX_FONT_SIZE = 72;
+const MIN_START_PAGE = 1;
+const MAX_START_PAGE = 9999;
+
 const toRoman = (num: number, upperCase: boolean = false): string => {
     const roman = {
         M: 1000, CM: 900, D: 500, CD: 400,
@@ -40,11 +53,44 @@ export default function AddPageNumbers() {
         startFrom: 1,
         fontSize: 12
     });
+    const [validation, setValidation] = useState<ValidationState>({
+        isValid: true,
+        errors: {}
+    });
+    const [isLoading, setIsLoading] = useState(false);
+
+    const validateOptions = (newOptions: PageNumberOptions): ValidationState => {
+        const errors: ValidationState['errors'] = {};
+        
+        if (newOptions.fontSize < MIN_FONT_SIZE || newOptions.fontSize > MAX_FONT_SIZE) {
+            errors.fontSize = `Font size must be between ${MIN_FONT_SIZE} and ${MAX_FONT_SIZE}`;
+        }
+        
+        if (newOptions.startFrom < MIN_START_PAGE || newOptions.startFrom > MAX_START_PAGE) {
+            errors.startFrom = `Starting page number must be between ${MIN_START_PAGE} and ${MAX_START_PAGE}`;
+        }
+
+        return {
+            isValid: Object.keys(errors).length === 0,
+            errors
+        };
+    };
+
+    const updateOptions = (updates: Partial<PageNumberOptions>) => {
+        const newOptions = { ...options, ...updates };
+        const validationResult = validateOptions(newOptions);
+        setValidation(validationResult);
+        setOptions(newOptions);
+    };
 
     const handleSubmit = async (files: File | File[]) => {
         const file = Array.isArray(files) ? files[0] : files;
         
+        setIsLoading(true);
         try {
+            // Add a brief delay for better UX
+            await new Promise(resolve => setTimeout(resolve, 500));
+
             const fileBuffer = await file.arrayBuffer();
             const pdfDoc = await PDFDocument.load(fileBuffer);
             const helveticaFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
@@ -117,6 +163,8 @@ export default function AddPageNumbers() {
             window.open(url, '_blank');
         } catch {
             throw new Error('Failed to add page numbers to PDF. Please try again.');
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -142,7 +190,7 @@ export default function AddPageNumbers() {
                 </label>
                 <select
                     value={options.position}
-                    onChange={(e) => setOptions(prev => ({ ...prev, position: e.target.value as Position }))}
+                    onChange={(e) => updateOptions({ position: e.target.value as Position })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 >
                     <option value="top-left">Top Left</option>
@@ -160,7 +208,7 @@ export default function AddPageNumbers() {
                 </label>
                 <select
                     value={options.style}
-                    onChange={(e) => setOptions(prev => ({ ...prev, style: e.target.value as Style }))}
+                    onChange={(e) => updateOptions({ style: e.target.value as Style })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 >
                     <option value="numeric">Numeric (1, 2, 3)</option>
@@ -175,11 +223,20 @@ export default function AddPageNumbers() {
                 </label>
                 <input
                     type="number"
-                    min="1"
+                    min={MIN_START_PAGE}
+                    max={MAX_START_PAGE}
                     value={options.startFrom}
-                    onChange={(e) => setOptions(prev => ({ ...prev, startFrom: parseInt(e.target.value) || 1 }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    onChange={(e) => {
+                        const value = e.target.value === '' ? MIN_START_PAGE : parseInt(e.target.value);
+                        updateOptions({ startFrom: value });
+                    }}
+                    className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${
+                        validation.errors.startFrom ? 'border-red-500' : 'border-gray-300'
+                    }`}
                 />
+                {validation.errors.startFrom && (
+                    <p className="mt-1 text-sm text-red-500">{validation.errors.startFrom}</p>
+                )}
             </div>
 
             <div>
@@ -188,12 +245,20 @@ export default function AddPageNumbers() {
                 </label>
                 <input
                     type="number"
-                    min="8"
-                    max="72"
+                    min={MIN_FONT_SIZE}
+                    max={MAX_FONT_SIZE}
                     value={options.fontSize}
-                    onChange={(e) => setOptions(prev => ({ ...prev, fontSize: parseInt(e.target.value) || 12 }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    onChange={(e) => {
+                        const value = e.target.value === '' ? MIN_FONT_SIZE : parseInt(e.target.value);
+                        updateOptions({ fontSize: value });
+                    }}
+                    className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${
+                        validation.errors.fontSize ? 'border-red-500' : 'border-gray-300'
+                    }`}
                 />
+                {validation.errors.fontSize && (
+                    <p className="mt-1 text-sm text-red-500">{validation.errors.fontSize}</p>
+                )}
             </div>
         </div>
     );
@@ -217,6 +282,8 @@ export default function AddPageNumbers() {
                         maxFileSize={50}
                         additionalFields={PageNumberSettings}
                         onComplete={handleComplete}
+                        isValid={validation.isValid}
+                        isLoading={isLoading}
                     />
                 )}
 

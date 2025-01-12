@@ -24,6 +24,7 @@ export default function CompressPDF() {
     const [downloadUrl, setDownloadUrl] = useState<string>('');
     const [showResult, setShowResult] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
 
     const getErrorMessage = (error: unknown): string => {
         if (error && typeof error === 'object' && 'response' in error) {
@@ -49,6 +50,7 @@ export default function CompressPDF() {
 
     const handleSubmit = async (files: File | File[]) => {
         setError(null);
+        setIsLoading(true);
         
         const file = Array.isArray(files) ? files[0] : files;
         if (!file) {
@@ -77,6 +79,8 @@ export default function CompressPDF() {
         } catch (err) {
             const errorMessage = getErrorMessage(err);
             throw new Error(errorMessage);
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -138,6 +142,7 @@ export default function CompressPDF() {
                         maxFileSize={50}
                         additionalFields={CompressionSelector}
                         onComplete={handleComplete}
+                        isLoading={isLoading}
                     />
                 )}
 

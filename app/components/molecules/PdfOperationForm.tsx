@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import FileInput from '../atoms/FileInput';
+import clsx from 'clsx';
 
 interface PdfOperationFormProps {
     onSubmit: (files: File | File[]) => Promise<void>;
@@ -12,6 +13,7 @@ interface PdfOperationFormProps {
     onFileSelect?: (files: File | File[]) => Promise<void>;
     allowMultiple?: boolean;
     isLoading?: boolean;
+    isValid?: boolean;
 }
 
 export default function PdfOperationForm({
@@ -22,7 +24,8 @@ export default function PdfOperationForm({
     onComplete,
     onFileSelect,
     allowMultiple = false,
-    isLoading = false
+    isLoading = false,
+    isValid = true
 }: PdfOperationFormProps) {
     const [files, setFiles] = useState<File[]>([]);
     const [error, setError] = useState<string>('');
@@ -58,7 +61,7 @@ export default function PdfOperationForm({
         <form onSubmit={handleSubmit} className="space-y-6">
             <FileInput
                 onFileSelect={handleFileSelect}
-                accept=".pdf"
+                accept={{ 'application/pdf': ['.pdf'] }}
                 maxFileSize={maxFileSize}
                 multiple={allowMultiple}
             />
@@ -74,14 +77,14 @@ export default function PdfOperationForm({
             <div className="mt-6">
                 <button
                     type="submit"
-                    disabled={!files.length || isLoading}
-                    className={`
-                        w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white
-                        ${!files.length || isLoading
-                            ? 'bg-gray-400 cursor-not-allowed'
-                            : 'bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500'
+                    disabled={!files.length || isLoading || !isValid}
+                    className={clsx(
+                        'w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white',
+                        {
+                            'bg-gray-400 cursor-not-allowed': !files.length || isLoading || !isValid,
+                            'bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500': files.length && !isLoading && isValid
                         }
-                    `}
+                    )}
                 >
                     {isLoading ? (
                         <>

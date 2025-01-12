@@ -13,19 +13,38 @@ export default function RemovePDFPages() {
     const [removingPages, setRemovingPages] = useState<number[]>([]);
     const [downloadUrl, setDownloadUrl] = useState<string>('');
     const [showResult, setShowResult] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [isValid, setIsValid] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
+
+    const validateSelection = (pages: number[]) => {
+        if (pages.length === 0) {
+            setError('Please select at least one page to remove');
+            setIsValid(false);
+            return false;
+        }
+        if (pages.length === pdfPageCount) {
+            setError('Cannot remove all pages from the PDF');
+            setIsValid(false);
+            return false;
+        }
+        setError(null);
+        setIsValid(true);
+        return true;
+    };
 
     const handleSubmit = async (files: File | File[]) => {
         const file = Array.isArray(files) ? files[0] : files;
         
-        if (removingPages.length === 0) {
-            throw new Error('Please select at least one page to remove');
+        if (!validateSelection(removingPages)) {
+            throw new Error(error || 'Invalid selection');
         }
 
-        if (removingPages.length === pdfPageCount) {
-            throw new Error('Cannot remove all pages from the PDF');
-        }
-
+        setIsLoading(true);
         try {
+            // Add a brief delay for better UX
+            await new Promise(resolve => setTimeout(resolve, 500));
+
             const fileBuffer = await file.arrayBuffer();
             const pdf = await PDFDocument.load(fileBuffer);
             
@@ -43,18 +62,22 @@ export default function RemovePDFPages() {
             window.open(url, '_blank');
         } catch {
             throw new Error('Failed to remove pages from PDF. Please try again.');
+        } finally {
+            setIsLoading(false);
         }
     };
 
     const handleFileSelect = async (files: File | File[]) => {
         const file = Array.isArray(files) ? files[0] : files;
         setPdfFile(file);
+        setError(null);
+        setIsValid(false);
+        setRemovingPages([]);
         
         try {
             const fileBuffer = await file.arrayBuffer();
             const document = await PDFDocument.load(fileBuffer);
             setPdfPageCount(document.getPageCount());
-            setRemovingPages([]);
         } catch {
             setPdfPageCount(0);
             throw new Error('Failed to load PDF. Please try again with a valid PDF file.');
@@ -63,11 +86,13 @@ export default function RemovePDFPages() {
 
     const toggleRemovePage = (pageNumber: number) => {
         setRemovingPages(prev => {
-            if (prev.includes(pageNumber)) {
-                return prev.filter(page => page !== pageNumber).sort((a, b) => a - b);
-            } else {
-                return [...prev, pageNumber].sort((a, b) => a - b);
-            }
+            const newPages = prev.includes(pageNumber)
+                ? prev.filter(page => page !== pageNumber)
+                : [...prev, pageNumber];
+            
+            const sorted = newPages.sort((a, b) => a - b);
+            validateSelection(sorted);
+            return sorted;
         });
     };
 
@@ -86,6 +111,8 @@ export default function RemovePDFPages() {
         setPdfFile(null);
         setPdfPageCount(0);
         setRemovingPages([]);
+        setError(null);
+        setIsValid(false);
     };
 
     const PageSelector = pdfFile && pdfPageCount > 0 ? (
@@ -125,9 +152,16 @@ export default function RemovePDFPages() {
                     </div>
                 ))}
             </div>
-            <p className="text-sm text-gray-500 mt-2">
-                Click on pages to select them for removal. Selected pages will be highlighted in red.
-            </p>
+            <div className="space-y-2">
+                <p className="text-sm text-gray-500">
+                    Click on pages to select them for removal. Selected pages will be highlighted in red.
+                </p>
+                {error && (
+                    <p className="text-sm text-red-500">
+                        {error}
+                    </p>
+                )}
+            </div>
         </div>
     ) : null;
 
@@ -151,6 +185,8 @@ export default function RemovePDFPages() {
                         additionalFields={PageSelector}
                         onComplete={handleComplete}
                         onFileSelect={handleFileSelect}
+                        isValid={isValid}
+                        isLoading={isLoading}
                     />
                 )}
 

@@ -24,6 +24,7 @@ export default function ConvertPDF() {
     const [downloadUrl, setDownloadUrl] = useState<string>('');
     const [showResult, setShowResult] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
 
     const getErrorMessage = (error: unknown): string => {
         if (error && typeof error === 'object' && 'response' in error) {
@@ -51,6 +52,7 @@ export default function ConvertPDF() {
 
     const handleSubmit = async (files: File | File[]) => {
         setError(null);
+        setIsLoading(true);
         
         const file = Array.isArray(files) ? files[0] : files;
         if (!file) {
@@ -79,6 +81,8 @@ export default function ConvertPDF() {
         } catch (err) {
             const errorMessage = getErrorMessage(err);
             throw new Error(errorMessage);
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -140,6 +144,7 @@ export default function ConvertPDF() {
                         maxFileSize={50}
                         additionalFields={FormatSelector}
                         onComplete={handleComplete}
+                        isLoading={isLoading}
                     />
                 )}
 

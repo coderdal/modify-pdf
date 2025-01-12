@@ -5,7 +5,7 @@ import './globals.css'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'PDF Toolkit - Modify PDFs Online',
+  title: 'PDF Toolkit - erdal.net.tr',
   description: 'Powerful PDF modification tools including conversion, compression, protection, and more.',
 }
 

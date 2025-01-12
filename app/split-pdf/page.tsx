@@ -22,6 +22,9 @@ export default function SplitPDF() {
     const [showResult, setShowResult] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
+    const [tempFromPage, setTempFromPage] = useState<string>('1');
+    const [tempToPage, setTempToPage] = useState<string>('1');
+    const [isValid, setIsValid] = useState(true);
 
     const getErrorMessage = (error: unknown): string => {
         if (error && typeof error === 'object' && 'response' in error) {
@@ -103,6 +106,42 @@ export default function SplitPDF() {
         setToPage(1);
     };
 
+    const validatePageNumbers = () => {
+        const fromNum = parseInt(tempFromPage);
+        const toNum = parseInt(tempToPage);
+        
+        const isValidFrom = !isNaN(fromNum) && fromNum >= 1 && fromNum <= maxPage;
+        const isValidTo = !isNaN(toNum) && toNum >= 1 && toNum <= maxPage;
+        const isValidRange = fromNum < toNum;
+        
+        setIsValid(isValidFrom && isValidTo && isValidRange);
+        return isValidFrom && isValidTo && isValidRange;
+    };
+
+    const handleFromPageBlur = () => {
+        const num = parseInt(tempFromPage);
+        if (!isNaN(num)) {
+            const validNum = Math.max(1, Math.min(maxPage, num));
+            setFromPage(validNum);
+            setTempFromPage(validNum.toString());
+        } else {
+            setTempFromPage(fromPage.toString());
+        }
+        validatePageNumbers();
+    };
+
+    const handleToPageBlur = () => {
+        const num = parseInt(tempToPage);
+        if (!isNaN(num)) {
+            const validNum = Math.max(1, Math.min(maxPage, num));
+            setToPage(validNum);
+            setTempToPage(validNum.toString());
+        } else {
+            setTempToPage(toPage.toString());
+        }
+        validatePageNumbers();
+    };
+
     const handleFileSelect = async (files: File | File[]): Promise<void> => {
         setError(null);
         try {
@@ -116,6 +155,10 @@ export default function SplitPDF() {
             const pageCount = pdfDoc.getPageCount();
             setMaxPage(pageCount);
             setToPage(pageCount);
+            setTempToPage(pageCount.toString());
+            setFromPage(1);
+            setTempFromPage('1');
+            setIsValid(true);
         } catch {
             setError('Failed to read PDF file. Please make sure it is a valid PDF.');
         }
@@ -131,8 +174,19 @@ export default function SplitPDF() {
                     type="number"
                     min={1}
                     max={maxPage}
-                    value={fromPage}
-                    onChange={(e) => setFromPage(Math.max(1, Math.min(maxPage, parseInt(e.target.value) || 1)))}
+                    value={tempFromPage}
+                    onChange={(e) => {
+                        setTempFromPage(e.target.value);
+                        const fromNum = parseInt(e.target.value);
+                        const toNum = parseInt(tempToPage);
+                        
+                        const isValidFrom = !isNaN(fromNum) && fromNum >= 1 && fromNum <= maxPage;
+                        const isValidTo = !isNaN(toNum) && toNum >= 1 && toNum <= maxPage;
+                        const isValidRange = fromNum < toNum;
+                        
+                        setIsValid(isValidFrom && isValidTo && isValidRange);
+                    }}
+                    onBlur={handleFromPageBlur}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                     required
                 />
@@ -145,15 +199,33 @@ export default function SplitPDF() {
                     type="number"
                     min={1}
                     max={maxPage}
-                    value={toPage}
-                    onChange={(e) => setToPage(Math.max(1, Math.min(maxPage, parseInt(e.target.value) || 1)))}
+                    value={tempToPage}
+                    onChange={(e) => {
+                        setTempToPage(e.target.value);
+                        const toNum = parseInt(e.target.value);
+                        const fromNum = parseInt(tempFromPage);
+                        
+                        const isValidFrom = !isNaN(fromNum) && fromNum >= 1 && fromNum <= maxPage;
+                        const isValidTo = !isNaN(toNum) && toNum >= 1 && toNum <= maxPage;
+                        const isValidRange = fromNum < toNum;
+                        
+                        setIsValid(isValidFrom && isValidTo && isValidRange);
+                    }}
+                    onBlur={handleToPageBlur}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                     required
                 />
             </div>
-            <p className="col-span-2 text-sm text-gray-500 mt-1">
-                This PDF has {maxPage} page{maxPage !== 1 ? 's' : ''}
-            </p>
+            <div className="col-span-2 space-y-1">
+                <p className="text-sm text-gray-500">
+                    This PDF has {maxPage} page{maxPage !== 1 ? 's' : ''}
+                </p>
+                {!isValid && (
+                    <p className="text-sm text-red-500">
+                        Please enter valid page numbers between 1 and {maxPage}. End page must be greater than start page.
+                    </p>
+                )}
+            </div>
         </div>
     );
 
@@ -186,6 +258,7 @@ export default function SplitPDF() {
                         onComplete={handleComplete}
                         onFileSelect={handleFileSelect}
                         isLoading={isLoading}
+                        isValid={isValid}
                     />
                 )}
 

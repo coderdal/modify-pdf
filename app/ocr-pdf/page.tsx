@@ -58,6 +58,7 @@ export default function OcrPDF() {
     const [downloadUrl, setDownloadUrl] = useState<string>('');
     const [showResult, setShowResult] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
 
     const getErrorMessage = (error: unknown): string => {
         if (error && typeof error === 'object' && 'response' in error) {
@@ -85,6 +86,7 @@ export default function OcrPDF() {
 
     const handleSubmit = async (files: File | File[]) => {
         setError(null);
+        setIsLoading(true);
         
         try {
             const file = Array.isArray(files) ? files[0] : files;
@@ -113,6 +115,8 @@ export default function OcrPDF() {
         } catch (err) {
             const errorMessage = err instanceof Error ? err.message : getErrorMessage(err);
             throw new Error(errorMessage);
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -178,6 +182,7 @@ export default function OcrPDF() {
                         maxFileSize={50}
                         additionalFields={LanguageSelector}
                         onComplete={handleComplete}
+                        isLoading={isLoading}
                     />
                 )}
 

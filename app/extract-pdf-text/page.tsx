@@ -119,6 +119,7 @@ export default function ExtractPDFText() {
                     operationName="Extract Text"
                     maxFileSize={50}
                     additionalFields={ProgressInfo}
+                    isLoading={isProcessing}
                 />
 
                 {ExtractedContent}

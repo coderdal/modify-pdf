@@ -7,19 +7,55 @@ import PdfOperationForm from '../components/molecules/PdfOperationForm';
 import ResultView from '../components/molecules/ResultView';
 import RotationSelector from '../components/molecules/RotationSelector';
 
+interface ValidationState {
+    isValid: boolean;
+    error?: string;
+}
+
 export default function RotatePDF() {
     const [rotation, setRotation] = useState<number>(0);
     const [downloadUrl, setDownloadUrl] = useState<string>('');
     const [showResult, setShowResult] = useState(false);
+    const [validation, setValidation] = useState<ValidationState>({ 
+        isValid: false,
+        error: 'Please select a rotation angle'
+    });
+    const [isLoading, setIsLoading] = useState(false);
+
+    const validateRotation = (angle: number): ValidationState => {
+        if (angle === 0) {
+            return {
+                isValid: false,
+                error: 'Please select a rotation angle other than 0°'
+            };
+        }
+        if (angle % 90 !== 0) {
+            return {
+                isValid: false,
+                error: 'Rotation must be in 90-degree increments'
+            };
+        }
+        return { isValid: true };
+    };
+
+    const handleRotationChange = (angle: number) => {
+        setRotation(angle);
+        setValidation(validateRotation(angle));
+    };
 
     const handleSubmit = async (files: File | File[]) => {
         const file = Array.isArray(files) ? files[0] : files;
         
-        if (rotation === 0) {
-            throw new Error('Please select a rotation angle');
+        const validationResult = validateRotation(rotation);
+        if (!validationResult.isValid) {
+            throw new Error(validationResult.error);
         }
 
+        setIsLoading(true);
         try {
+            // Add a brief delay for better UX
+            await new Promise(resolve => setTimeout(resolve, 500));
+
             // Load the PDF document
             const fileBuffer = await file.arrayBuffer();
             const pdfDoc = await PDFDocument.load(fileBuffer);
@@ -42,6 +78,8 @@ export default function RotatePDF() {
             window.open(url, '_blank');
         } catch {
             throw new Error('Failed to rotate PDF. Please try again.');
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -58,10 +96,21 @@ export default function RotatePDF() {
         }
         setDownloadUrl('');
         setRotation(0);
+        setValidation({ 
+            isValid: false,
+            error: 'Please select a rotation angle other than 0°'
+        });
     };
 
     const RotationControl = (
-        <RotationSelector onChange={setRotation} />
+        <div className="space-y-2">
+            <RotationSelector onChange={handleRotationChange} initialRotation={rotation} />
+            {!validation.isValid && validation.error && (
+                <p className="text-sm text-red-500 text-center mt-2">
+                    {validation.error}
+                </p>
+            )}
+        </div>
     );
 
     return (
@@ -83,6 +132,8 @@ export default function RotatePDF() {
                         maxFileSize={50}
                         additionalFields={RotationControl}
                         onComplete={handleComplete}
+                        isValid={validation.isValid}
+                        isLoading={isLoading}
                     />
                 )}
 

@@ -18,6 +18,14 @@ export default function RemoveProtectionPDF() {
     const [downloadUrl, setDownloadUrl] = useState<string>('');
     const [showResult, setShowResult] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [isValid, setIsValid] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
+
+    const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const newPassword = e.target.value;
+        setPassword(newPassword);
+        setIsValid(newPassword.length > 0);
+    };
 
     const getErrorMessage = (error: unknown): string => {
         if (error && typeof error === 'object' && 'response' in error) {
@@ -47,6 +55,7 @@ export default function RemoveProtectionPDF() {
 
     const handleSubmit = async (files: File | File[]) => {
         setError(null);
+        setIsLoading(true);
         
         try {
             if (!password) {
@@ -79,6 +88,8 @@ export default function RemoveProtectionPDF() {
         } catch (err) {
             const errorMessage = err instanceof Error ? err.message : getErrorMessage(err);
             throw new Error(errorMessage);
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -103,7 +114,7 @@ export default function RemoveProtectionPDF() {
             <input
                 type="password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={handlePasswordChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                 placeholder="Enter the PDF password"
                 required
@@ -141,6 +152,8 @@ export default function RemoveProtectionPDF() {
                         maxFileSize={50}
                         additionalFields={PasswordField}
                         onComplete={handleComplete}
+                        isValid={isValid}
+                        isLoading={isLoading}
                     />
                 )}
 
