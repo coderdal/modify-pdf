@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import axios from 'axios';
+import api from '@/lib/api';
 import PageContainer from '../components/common/PageContainer';
 import PdfOperationForm from '../components/molecules/PdfOperationForm';
 import ResultView from '../components/molecules/ResultView';
@@ -51,21 +51,18 @@ export default function ProtectPDF() {
         const errors: ValidationState['errors'] = {};
         let strengthScore = 0;
 
-        // Check password requirements
         const hasLength = password.length >= MIN_PASSWORD_LENGTH;
         const hasUpperCase = /[A-Z]/.test(password);
         const hasLowerCase = /[a-z]/.test(password);
         const hasNumber = /[0-9]/.test(password);
         const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(password);
 
-        // Calculate strength score
         if (hasLength) strengthScore++;
         if (hasUpperCase) strengthScore++;
         if (hasLowerCase) strengthScore++;
         if (hasNumber) strengthScore++;
         if (hasSpecial) strengthScore++;
 
-        // Get strength label and color
         const strength = {
             score: strengthScore,
             label: strengthScore === 0 ? 'Very Weak' :
@@ -79,7 +76,6 @@ export default function ProtectPDF() {
                    'bg-green-500'
         };
 
-        // Validate password
         if (password) {
             if (password.length < MIN_PASSWORD_LENGTH) {
                 errors.password = `Password must be at least ${MIN_PASSWORD_LENGTH} characters long`;
@@ -88,7 +84,6 @@ export default function ProtectPDF() {
             }
         }
 
-        // Validate confirm password
         if (confirmPassword && password !== confirmPassword) {
             errors.confirmPassword = 'Passwords do not match';
         }
@@ -145,8 +140,8 @@ export default function ProtectPDF() {
             formData.append('pdf', file);
             formData.append('password', password);
 
-            const response = await axios.post<{ status: string; data: { filePath: string } }>(
-                'http://localhost:3001/protect-pdf',
+            const response = await api.post<{ status: string; data: { filePath: string } }>(
+                '/protect-pdf',
                 formData,
                 {
                     headers: { 'Content-Type': 'multipart/form-data' },

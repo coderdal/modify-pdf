@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import axios from 'axios';
+import api from '@/lib/api';
 import PageContainer from '../components/common/PageContainer';
 import PdfOperationForm from '../components/molecules/PdfOperationForm';
 import ResultView from '../components/molecules/ResultView';
@@ -64,8 +64,8 @@ export default function ConvertPDF() {
         formData.append('exportFormat', exportFormat);
 
         try {
-            const response = await axios.post<{ status: string; data: { filePath: string; extension: string } }>(
-                'http://localhost:3001/convert-pdf',
+            const response = await api.post<{ status: string; data: { filePath: string } }>(
+                '/convert-pdf',
                 formData,
                 {
                     headers: { 'Content-Type': 'multipart/form-data' },

@@ -53,28 +53,22 @@ export default function RotatePDF() {
 
         setIsLoading(true);
         try {
-            // Add a brief delay for better UX
             await new Promise(resolve => setTimeout(resolve, 500));
 
-            // Load the PDF document
             const fileBuffer = await file.arrayBuffer();
             const pdfDoc = await PDFDocument.load(fileBuffer);
 
-            // Rotate all pages
             const pages = pdfDoc.getPages();
             pages.forEach(page => {
                 page.setRotation(degrees(rotation));
             });
 
-            // Save the modified PDF
             const pdfBytes = await pdfDoc.save();
 
-            // Create a download URL
             const blob = new Blob([pdfBytes], { type: 'application/pdf' });
             const url = URL.createObjectURL(blob);
             setDownloadUrl(url);
 
-            // Automatically open download in new tab
             window.open(url, '_blank');
         } catch {
             throw new Error('Failed to rotate PDF. Please try again.');

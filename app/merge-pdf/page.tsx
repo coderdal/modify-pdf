@@ -26,13 +26,10 @@ export default function MergePDF() {
 
         setIsLoading(true);
         try {
-            // Add a brief delay for better UX
             await new Promise(resolve => setTimeout(resolve, 500));
 
-            // Create a new PDF document
             const mergedPdf = await PDFDocument.create();
 
-            // Process each PDF file
             for (const file of files) {
                 const fileBuffer = await file.arrayBuffer();
                 const pdf = await PDFDocument.load(fileBuffer);
@@ -40,15 +37,12 @@ export default function MergePDF() {
                 pages.forEach((page) => mergedPdf.addPage(page));
             }
 
-            // Save the merged PDF
             const pdfBytes = await mergedPdf.save();
 
-            // Create a download URL
             const blob = new Blob([pdfBytes], { type: 'application/pdf' });
             const url = URL.createObjectURL(blob);
             setDownloadUrl(url);
 
-            // Automatically open download in new tab
             window.open(url, '_blank');
         } catch {
             throw new Error('Failed to merge PDFs. Please try again.');

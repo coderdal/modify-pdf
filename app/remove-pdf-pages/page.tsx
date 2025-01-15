@@ -42,13 +42,11 @@ export default function RemovePDFPages() {
 
         setIsLoading(true);
         try {
-            // Add a brief delay for better UX
             await new Promise(resolve => setTimeout(resolve, 500));
 
             const fileBuffer = await file.arrayBuffer();
             const pdf = await PDFDocument.load(fileBuffer);
             
-            // Remove pages in reverse order to maintain correct indices
             [...removingPages].sort((a, b) => b - a).forEach(pageNum => {
                 pdf.removePage(pageNum - 1);
             });
@@ -58,7 +56,6 @@ export default function RemovePDFPages() {
             const url = URL.createObjectURL(blob);
             setDownloadUrl(url);
 
-            // Automatically open download in new tab
             window.open(url, '_blank');
         } catch {
             throw new Error('Failed to remove pages from PDF. Please try again.');

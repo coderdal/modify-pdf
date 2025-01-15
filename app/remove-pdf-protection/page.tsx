@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import axios from 'axios';
+import api from '@/lib/api';
 import PageContainer from '../components/common/PageContainer';
 import PdfOperationForm from '../components/molecules/PdfOperationForm';
 import ResultView from '../components/molecules/ResultView';
@@ -71,8 +71,8 @@ export default function RemoveProtectionPDF() {
             formData.append('pdf', file);
             formData.append('password', password);
 
-            const response = await axios.post<{ status: string; data: { filePath: string } }>(
-                'http://localhost:3001/remove-pdf-protection',
+            const response = await api.post<{ status: string; data: { filePath: string } }>(
+                '/remove-pdf-protection',
                 formData,
                 {
                     headers: { 'Content-Type': 'multipart/form-data' },

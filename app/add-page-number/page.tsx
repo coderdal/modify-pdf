@@ -88,7 +88,6 @@ export default function AddPageNumbers() {
         
         setIsLoading(true);
         try {
-            // Add a brief delay for better UX
             await new Promise(resolve => setTimeout(resolve, 500));
 
             const fileBuffer = await file.arrayBuffer();
@@ -116,8 +115,7 @@ export default function AddPageNumbers() {
                 
                 let x = 0;
                 let y = 0;
-                
-                // Calculate position
+
                 switch (options.position) {
                     case 'top-left':
                         x = 30;
@@ -159,7 +157,6 @@ export default function AddPageNumbers() {
             const url = URL.createObjectURL(blob);
             setDownloadUrl(url);
 
-            // Automatically open download in new tab
             window.open(url, '_blank');
         } catch {
             throw new Error('Failed to add page numbers to PDF. Please try again.');

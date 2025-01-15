@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import axios from 'axios';
+import api from '@/lib/api';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import PageContainer from '../components/common/PageContainer';
@@ -125,8 +125,8 @@ export default function ReorderPDF() {
             formData.append('pdf', file);
             formData.append('pageOrder', pages.join(','));
 
-            const response = await axios.post<{ status: string; data: { filePath: string } }>(
-                'http://localhost:3001/reorder-pdf',
+            const response = await api.post<{ status: string; data: { filePath: string } }>(
+                '/reorder-pdf',
                 formData,
                 {
                     headers: { 'Content-Type': 'multipart/form-data' },
