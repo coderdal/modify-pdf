@@ -23,7 +23,6 @@ export default function ResultView({
             <Alert
                 type="success"
                 message={`${operationName} completed successfully!`}
-                autoHide
             />
 
             <div className="bg-white rounded-lg border border-gray-200 p-6">

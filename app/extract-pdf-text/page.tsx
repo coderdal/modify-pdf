@@ -1,15 +1,13 @@
 "use client";
 
 import { useState } from 'react';
-import * as PDFJS from 'pdfjs-dist/legacy/build/pdf.mjs';
+import * as pdfJS from 'pdfjs-dist';
 import type { TextItem } from 'pdfjs-dist/types/src/display/api';
 import PageContainer from '../components/common/PageContainer';
 import PdfOperationForm from '../components/molecules/PdfOperationForm';
 
-PDFJS.GlobalWorkerOptions.workerSrc = new URL(
-    'pdfjs-dist/build/pdf.worker.min.mjs',
-    import.meta.url,
-).toString();
+
+pdfJS.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
 
 export default function ExtractPDFText() {
     const [extractedText, setExtractedText] = useState<string>('');
@@ -24,7 +22,7 @@ export default function ExtractPDFText() {
         
         try {
             const fileBuffer = await file.arrayBuffer();
-            const pdf = await PDFJS.getDocument(fileBuffer).promise;
+            const pdf = await pdfJS.getDocument(fileBuffer).promise;
             const numPages = pdf.numPages;
             setTotalPages(numPages);
             

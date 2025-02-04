@@ -1,10 +1,10 @@
-import React, { useRef, useEffect, useState } from 'react';
-import * as PDFJS from 'pdfjs-dist/legacy/build/pdf.mjs';
+'use client';
 
-PDFJS.GlobalWorkerOptions.workerSrc = new URL(
-    'pdfjs-dist/build/pdf.worker.min.mjs',
-    import.meta.url,
-).toString();
+import React, { useRef, useEffect, useState } from 'react';
+import * as pdfJS from 'pdfjs-dist';
+
+
+pdfJS.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
 
 interface RenderPdfPageProps {
     pageNumber: number;
@@ -15,18 +15,21 @@ interface RenderPdfPageProps {
 
 const RenderPdfPage: React.FC<RenderPdfPageProps> = ({ pageNumber, pdfFile, width, height }) => {
     const pdfViewerRef = useRef<HTMLCanvasElement>(null);
-    const [pdfDocument, setPdfDocument] = useState<PDFJS.PDFDocumentProxy | null>(null);
+    const [pdfDocument, setPdfDocument] = useState<pdfJS.PDFDocumentProxy | null>(null);
     const [isMounted, setIsMounted] = useState<boolean>(true);
 
     useEffect(() => {
         setIsMounted(true);
 
         const loadPdf = async () => {
-            const arrayBuffer = await pdfFile.arrayBuffer();
-
-            const pdf = await PDFJS.getDocument({ data: arrayBuffer }).promise;
-            if (isMounted) {
-                setPdfDocument(pdf);
+            try {
+                const arrayBuffer = await pdfFile.arrayBuffer();
+                const pdf = await pdfJS.getDocument({ data: arrayBuffer }).promise;
+                if (isMounted) {
+                    setPdfDocument(pdf);
+                }
+            } catch (error) {
+                console.error('Error loading PDF:', error);
             }
         };
 
@@ -38,40 +41,39 @@ const RenderPdfPage: React.FC<RenderPdfPageProps> = ({ pageNumber, pdfFile, widt
                 pdfDocument.destroy();
             }
         };
-        // eslint-disable-next-line
     }, [pdfFile]);
 
     useEffect(() => {
-        if (!pdfDocument) return;
+        if (!pdfDocument || !isMounted) return;
 
-        let renderTask: PDFJS.RenderTask | null = null;
+        let renderTask: pdfJS.RenderTask | null = null;
 
         const renderPage = async () => {
             const pdfViewer = pdfViewerRef.current;
             if (!pdfViewer) return;
 
-            const page = await pdfDocument.getPage(pageNumber);
-            const viewport = page.getViewport({ scale: 1 });
-            const scale = Math.min(width / viewport.width, height / viewport.height);
-            const scaledViewport = page.getViewport({ scale });
-
-            pdfViewer.width = scaledViewport.width;
-            pdfViewer.height = scaledViewport.height;
-
-            const context = pdfViewer.getContext('2d');
-            if (!context) return;
-
-            const renderContext = {
-                canvasContext: context,
-                viewport: scaledViewport
-            };
-
-            if (renderTask) {
-                renderTask.cancel();
-            }
-
-            renderTask = page.render(renderContext);
             try {
+                const page = await pdfDocument.getPage(pageNumber);
+                const viewport = page.getViewport({ scale: 1 });
+                const scale = Math.min(width / viewport.width, height / viewport.height);
+                const scaledViewport = page.getViewport({ scale });
+
+                pdfViewer.width = scaledViewport.width;
+                pdfViewer.height = scaledViewport.height;
+
+                const context = pdfViewer.getContext('2d');
+                if (!context) return;
+
+                const renderContext = {
+                    canvasContext: context,
+                    viewport: scaledViewport
+                };
+
+                if (renderTask) {
+                    renderTask.cancel();
+                }
+
+                renderTask = page.render(renderContext);
                 await renderTask.promise;
             } catch (error) {
                 if (error instanceof Error && error.name === 'RenderingCancelledException') {
@@ -85,12 +87,11 @@ const RenderPdfPage: React.FC<RenderPdfPageProps> = ({ pageNumber, pdfFile, widt
         renderPage();
 
         return () => {
-            setIsMounted(false);
             if (renderTask) {
                 renderTask.cancel();
             }
         };
-    }, [pdfDocument, pageNumber, width, height]);
+    }, [pdfDocument, pageNumber, width, height, isMounted]);
 
     return (
         <div style={{ width: `${width}px`, height: `${height}px`, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
