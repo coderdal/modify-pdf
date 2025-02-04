@@ -12,15 +12,14 @@ const nextConfig = {
             type: 'javascript/auto'
         });
 
+        config.resolve.fallback = {
+            ...config.resolve.fallback,
+            "Promise.withResolvers": false
+        };
+
         return config;
     },
-    output: 'standalone',
-    runtime: 'nodejs',
-    generateStaticParams: async () => {
-        return {
-            '/extract-pdf-text': { dynamic: true }
-        }
-    }
+    output: 'standalone'
 };
 
 export default nextConfig;

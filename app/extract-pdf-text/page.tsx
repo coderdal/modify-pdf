@@ -1,5 +1,8 @@
 "use client";
 
+export const dynamic = 'force-dynamic';
+
+import '@/lib/polyfills';
 import { useState } from 'react';
 import * as pdfJS from 'pdfjs-dist';
 import type { TextItem } from 'pdfjs-dist/types/src/display/api';

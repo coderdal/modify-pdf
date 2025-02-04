@@ -1,5 +1,8 @@
 "use client";
 
+export const dynamic = 'force-dynamic';
+
+import '@/lib/polyfills';
 import { useState } from 'react';
 import { PDFDocument } from 'pdf-lib';
 import PageContainer from '../components/common/PageContainer';

@@ -10,7 +10,6 @@ const api = axios.create({
 // Request interceptor
 api.interceptors.request.use(
   (config) => {
-    // You can add common request handling here (e.g., adding auth tokens)
     return config;
   },
   (error) => {
@@ -22,7 +21,6 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    // You can add common error handling here
     return Promise.reject(error);
   }
 );
